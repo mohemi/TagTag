@@ -9,14 +9,26 @@
 <body>
   <div class="app">
     <!-- Left Sidebar: Spaces -->
-    <aside class="sidebar-left">
+    <aside class="sidebar-left" id="sidebarLeft">
       <div class="sidebar-header">
         <span class="logo">TagTag</span>
-        <button class="btn-icon" id="addSpaceBtn" title="New Space">+</button>
       </div>
-      <div class="spaces-label">Spaces</div>
+      <div class="spaces-label">
+        <span>Spaces</span>
+        <button class="btn-icon spaces-add-btn" id="addSpaceBtn" title="New Space">+</button>
+      </div>
       <ul class="spaces-list" id="spacesList"></ul>
+      <div class="sidebar-left-footer">
+        <button class="sidebar-left-toggle" id="sidebarLeftToggle" title="Toggle sidebar">
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+            <path d="M9 3l-4 4 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
     </aside>
+
+    <!-- Left resize handle -->
+    <div class="resize-handle resize-handle-left" id="resizeLeft"></div>
 
     <!-- Main Content Area -->
     <main class="main-content">
@@ -37,7 +49,6 @@
         <div class="top-bar-right">
           <button class="btn-secondary" id="addCollectionBtn">+ Add collection</button>
           <span class="tab-count" id="tabCount">Tabs (0)</span>
-          <button class="btn-primary" id="saveBtn">Save</button>
         </div>
       </header>
 
@@ -45,25 +56,23 @@
       <div class="collections-area" id="collectionsArea"></div>
     </main>
 
+    <!-- Right resize handle -->
+    <div class="resize-handle resize-handle-right" id="resizeRight"></div>
+
     <!-- Right Sidebar: Current Tabs -->
-    <aside class="sidebar-right">
+    <aside class="sidebar-right" id="sidebarRight">
       <div class="sidebar-right-header">
         <span>Current Tabs</span>
       </div>
       <ul class="current-tabs-list" id="currentTabsList"></ul>
     </aside>
 
-    <!-- Bottom Bar -->
-    <footer class="bottom-bar">
-      <div class="user-info">
-        <span class="user-avatar" id="userAvatar">👤</span>
-        <span class="user-name" id="userName">User</span>
-        <span class="plan-badge" id="planBadge">Free</span>
-      </div>
-      <div class="bottom-actions">
-        <button class="btn-icon" id="settingsBtn" title="Settings">⚙️ Settings</button>
-      </div>
-    </footer>
+    <!-- Right sidebar toggle (outside sidebar so it stays visible when hidden) -->
+    <button class="sidebar-toggle-circle" id="sidebarToggle" title="Toggle Current Tabs">
+      <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+        <path d="M5 3l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
   </div>
 
   <!-- Modals -->
@@ -83,11 +92,30 @@
     </div>
   </div>
 
-  <!-- Context Menu -->
+  <!-- Space Context Menu -->
   <div class="context-menu" id="contextMenu" hidden>
     <button class="context-menu-item" data-action="import-json">Import JSON</button>
+    <button class="context-menu-item" data-action="change-icon">Change Icon</button>
     <button class="context-menu-item" data-action="rename">Edit Name</button>
     <button class="context-menu-item context-menu-item--danger" data-action="delete">Delete</button>
+  </div>
+
+  <!-- Tab Card Context Menu -->
+  <div class="context-menu" id="tabContextMenu" hidden>
+    <button class="context-menu-item" data-action="tab-rename">Rename</button>
+    <button class="context-menu-item" data-action="tab-edit-url">Edit URL</button>
+    <button class="context-menu-item context-menu-item--danger" data-action="tab-delete">Delete</button>
+  </div>
+
+  <!-- Emoji Picker -->
+  <div class="emoji-picker-overlay" id="emojiPickerOverlay" hidden>
+    <div class="emoji-picker" id="emojiPicker">
+      <div class="emoji-picker-header">
+        <h3>Choose Icon</h3>
+        <button class="btn-icon modal-close" id="emojiPickerClose">&times;</button>
+      </div>
+      <div class="emoji-picker-grid" id="emojiPickerGrid"></div>
+    </div>
   </div>
 
   <!-- Hidden file input for JSON import -->

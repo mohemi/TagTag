@@ -21,9 +21,6 @@
   const $tabCount = document.getElementById('tabCount');
   const $addSpaceBtn = document.getElementById('addSpaceBtn');
   const $addCollectionBtn = document.getElementById('addCollectionBtn');
-  const $saveBtn = document.getElementById('saveBtn');
-  const $userName = document.getElementById('userName');
-  const $planBadge = document.getElementById('planBadge');
   const $modalOverlay = document.getElementById('modalOverlay');
   const $modalTitle = document.getElementById('modalTitle');
   const $modalInput = document.getElementById('modalInput');
@@ -32,6 +29,24 @@
   const $modalClose = document.getElementById('modalClose');
   const $contextMenu = document.getElementById('contextMenu');
   const $jsonFileInput = document.getElementById('jsonFileInput');
+  const $sidebarToggle = document.getElementById('sidebarToggle');
+  const $sidebarLeftToggle = document.getElementById('sidebarLeftToggle');
+  const $tabContextMenu = document.getElementById('tabContextMenu');
+  const $emojiPickerOverlay = document.getElementById('emojiPickerOverlay');
+  const $emojiPickerGrid = document.getElementById('emojiPickerGrid');
+  const $emojiPickerClose = document.getElementById('emojiPickerClose');
+
+  // ── Emoji list ──
+  const EMOJIS = [
+    '🪟','📌','📚','⏳','🚀','💡','🎯','🔥','⭐','💻','🎨','🎵',
+    '📝','📊','🔧','🌐','📁','🏠','🧪','🎮','📱','🛒','💼','🔍',
+    '❤️','🌟','🎬','📸','🍕','☕','🌈','🦄','🐱','🐶','🌺','🍀',
+    '🏆','🎁','🔔','💎','🧩','🗂️','📮','🛠️','🔒','🌍','🎓','📐',
+  ];
+
+  function randomEmoji() {
+    return EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
+  }
 
   // ═══ Init ═══
 
@@ -43,7 +58,6 @@
     activeSpaceId = settings.defaultSpace || (spaces[0] && spaces[0].id);
 
     await loadBrowserTabs();
-    await loadAccount();
 
     renderSpaces();
     renderCollections();
@@ -57,13 +71,6 @@
     } catch {
       browserTabs = [];
     }
-  }
-
-  async function loadAccount() {
-    const account = await StorageManager.getAccount();
-    $userName.textContent = account.name;
-    $planBadge.textContent = account.plan === 'pro' ? 'Pro' : 'Free';
-    if (account.plan === 'pro') $planBadge.classList.add('pro');
   }
 
   // ═══ Render: Spaces Sidebar ═══
@@ -262,12 +269,16 @@
     const firstChar = (tab.title || 'U').charAt(0).toUpperCase();
 
     card.innerHTML = `
-      <img class="tab-favicon" src="${esc(faviconUrl)}" alt=""
-        onerror="this.onerror=null;this.src='https://www.google.com/s2/favicons?domain=${esc(domain)}&sz=32'">
+      <img class="tab-favicon" src="${esc(faviconUrl)}" alt="">
       <span class="tab-title">${esc(tab.title)}</span>
-      <span class="tab-domain">${esc(domain)}</span>
-      <button class="tab-remove" title="Remove">&times;</button>
+      <button class="tab-remove" title="More">···</button>
     `;
+
+    // Fallback favicon on error (no inline handler for CSP)
+    const img = card.querySelector('.tab-favicon');
+    img.addEventListener('error', () => {
+      img.src = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+    }, { once: true });
 
     // Drag card between collections
     card.addEventListener('dragstart', (e) => {
@@ -284,15 +295,10 @@
       openUrl(tab.url);
     });
 
-    // Remove
-    card.querySelector('.tab-remove').addEventListener('click', () => {
-      const sp = spaces.find(s => s.id === spaceId);
-      if (!sp) return;
-      const c = sp.collections.find(c => c.id === collectionId);
-      if (!c) return;
-      c.tabs = c.tabs.filter(t => t.id !== tab.id);
-      renderCollections();
-      saveAll();
+    // Tab menu (···)
+    card.querySelector('.tab-remove').addEventListener('click', (e) => {
+      e.stopPropagation();
+      showTabContextMenu(e, spaceId, collectionId, tab);
     });
 
     return card;
@@ -315,9 +321,12 @@
 
       const favicon = tab.favIconUrl || `https://www.google.com/s2/favicons?domain=${getDomain(tab.url)}&sz=16`;
       li.innerHTML = `
-        <img src="${esc(favicon)}" alt="" onerror="this.style.display='none'">
+        <img src="${esc(favicon)}" alt="">
         <span>${esc(tab.title || tab.url || 'Untitled')}</span>
       `;
+
+      // Fallback: hide broken favicon (no inline handler for CSP)
+      li.querySelector('img').addEventListener('error', function () { this.style.display = 'none'; }, { once: true });
 
       li.addEventListener('click', () => {
         try {
@@ -394,7 +403,7 @@
     $addSpaceBtn.addEventListener('click', () => {
       showModal('New Space', '', async (name) => {
         if (!name.trim()) return;
-        const sp = await StorageManager.createSpace(name.trim());
+        const sp = await StorageManager.createSpace(name.trim(), randomEmoji());
         spaces = await StorageManager.getSpaces();
         switchSpace(sp.id);
       });
@@ -408,11 +417,6 @@
         spaces = await StorageManager.getSpaces();
         renderCollections();
       });
-    });
-
-    $saveBtn.addEventListener('click', async () => {
-      await saveAll();
-      showToast('Saved!');
     });
 
     $searchInput.addEventListener('input', (e) => {
@@ -457,13 +461,109 @@
       } else if (action === 'import-json') {
         pendingImportSpaceId = spaceId;
         $jsonFileInput.click();
+      } else if (action === 'change-icon') {
+        showEmojiPicker((emoji) => {
+          space.icon = emoji;
+          saveAll();
+          renderSpaces();
+        });
       }
     });
 
-    document.addEventListener('click', () => hideContextMenu());
+    document.addEventListener('click', () => { hideContextMenu(); hideTabContextMenu(); });
 
-    document.getElementById('settingsBtn').addEventListener('click', () => showToast('Settings coming soon'));
+    // Right sidebar toggle
+    $sidebarToggle.addEventListener('click', () => {
+      document.querySelector('.app').classList.toggle('sidebar-right-hidden');
+    });
+
+    // Left sidebar toggle
+    $sidebarLeftToggle.addEventListener('click', () => {
+      document.querySelector('.app').classList.toggle('sidebar-left-collapsed');
+    });
   }
+
+  // ═══ Tab Context Menu ═══
+
+  let tabMenuTarget = null; // { spaceId, collectionId, tab }
+
+  function showTabContextMenu(e, spaceId, collectionId, tab) {
+    tabMenuTarget = { spaceId, collectionId, tab };
+    $tabContextMenu.hidden = false;
+    const rect = e.target.getBoundingClientRect();
+    $tabContextMenu.style.top = rect.bottom + 4 + 'px';
+    $tabContextMenu.style.left = rect.left + 'px';
+  }
+
+  function hideTabContextMenu() {
+    $tabContextMenu.hidden = true;
+    tabMenuTarget = null;
+  }
+
+  $tabContextMenu.addEventListener('click', (e) => {
+    const action = e.target.dataset.action;
+    hideTabContextMenu();
+    if (!action || !tabMenuTarget) return;
+
+    const { spaceId, collectionId, tab } = tabMenuTarget;
+    const sp = spaces.find(s => s.id === spaceId);
+    if (!sp) return;
+    const col = sp.collections.find(c => c.id === collectionId);
+    if (!col) return;
+    const t = col.tabs.find(x => x.id === tab.id);
+    if (!t) return;
+
+    if (action === 'tab-rename') {
+      showModal('Rename Tab', t.title, (newName) => {
+        if (newName.trim()) {
+          t.title = newName.trim();
+          renderCollections();
+          saveAll();
+        }
+      });
+    } else if (action === 'tab-edit-url') {
+      showModal('Edit URL', t.url, (newUrl) => {
+        if (newUrl.trim()) {
+          t.url = newUrl.trim();
+          renderCollections();
+          saveAll();
+        }
+      });
+    } else if (action === 'tab-delete') {
+      col.tabs = col.tabs.filter(x => x.id !== tab.id);
+      renderCollections();
+      saveAll();
+    }
+  });
+
+  // ═══ Emoji Picker ═══
+
+  let emojiCallback = null;
+
+  function showEmojiPicker(callback) {
+    emojiCallback = callback;
+    $emojiPickerGrid.innerHTML = '';
+    EMOJIS.forEach(emoji => {
+      const btn = document.createElement('button');
+      btn.textContent = emoji;
+      btn.addEventListener('click', () => {
+        hideEmojiPicker();
+        if (emojiCallback) emojiCallback(emoji);
+      });
+      $emojiPickerGrid.appendChild(btn);
+    });
+    $emojiPickerOverlay.hidden = false;
+  }
+
+  function hideEmojiPicker() {
+    $emojiPickerOverlay.hidden = true;
+    emojiCallback = null;
+  }
+
+  $emojiPickerClose.addEventListener('click', hideEmojiPicker);
+  $emojiPickerOverlay.addEventListener('click', (e) => {
+    if (e.target === $emojiPickerOverlay) hideEmojiPicker();
+  });
 
   // ═══ JSON Import ═══
 
@@ -574,7 +674,7 @@
     $contextMenu.style.left = rect.left + 'px';
   }
 
-  function hideContextMenu() { $contextMenu.hidden = true; }
+  function hideContextMenu() { $contextMenu.hidden = true; $tabContextMenu.hidden = true; }
 
   // ═══ Helpers ═══
 
@@ -608,6 +708,59 @@
     try { return new URL(url).hostname.replace('www.', ''); } catch { return ''; }
   }
 
+  // ═══ Resize Handles ═══
+
+  function initResize() {
+    const $app = document.querySelector('.app');
+    const $resizeLeft = document.getElementById('resizeLeft');
+    const $resizeRight = document.getElementById('resizeRight');
+
+    let leftWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width'));
+    let rightWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--right-sidebar-width'));
+
+    function startDrag(handle, side) {
+      handle.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        $app.classList.add('resizing');
+        handle.classList.add('active');
+
+        const startX = e.clientX;
+        const startLeftW = leftWidth;
+        const startRightW = rightWidth;
+
+        function onMove(e2) {
+          const dx = e2.clientX - startX;
+          if (side === 'left') {
+            const newW = Math.max(120, Math.min(400, startLeftW + dx));
+            leftWidth = newW;
+            $app.style.gridTemplateColumns = `${newW}px 4px 1fr 4px ${rightWidth}px`;
+          } else {
+            const newW = Math.max(160, Math.min(500, startRightW - dx));
+            rightWidth = newW;
+            $app.style.gridTemplateColumns = `${leftWidth}px 4px 1fr 4px ${newW}px`;
+          }
+        }
+
+        function onUp() {
+          $app.classList.remove('resizing');
+          handle.classList.remove('active');
+          document.documentElement.style.setProperty('--sidebar-width', leftWidth + 'px');
+          document.documentElement.style.setProperty('--right-sidebar-width', rightWidth + 'px');
+          $app.style.gridTemplateColumns = '';
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+        }
+
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+    }
+
+    startDrag($resizeLeft, 'left');
+    startDrag($resizeRight, 'right');
+  }
+
   // ═══ Start ═══
   await init();
+  initResize();
 })();
