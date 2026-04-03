@@ -37,6 +37,9 @@
   const $emojiPickerClose = document.getElementById('emojiPickerClose');
   const $saveTabsBtn = document.getElementById('saveTabsBtn');
   const $currentTabsCount = document.getElementById('currentTabsCount');
+  const $settingsBtn = document.getElementById('settingsBtn');
+  const $settingsOverlay = document.getElementById('settingsOverlay');
+  const $settingsClose = document.getElementById('settingsClose');
 
   // ── Emoji list ──
   const EMOJIS = [
@@ -58,6 +61,7 @@
 
     const settings = await StorageManager.getSettings();
     activeSpaceId = settings.defaultSpace || (spaces[0] && spaces[0].id);
+    applyTheme(settings.theme);
 
     await loadBrowserTabs();
 
@@ -73,7 +77,13 @@
   async function loadBrowserTabs() {
     try {
       const all = await chrome.tabs.query({});
-      browserTabs = all.filter(t => !t.url || !t.url.startsWith(SELF_URL));
+      browserTabs = all.filter(t => {
+        if (!t.url) return true;
+        if (t.url.startsWith(SELF_URL)) return false;
+        if (t.url === 'chrome://newtab/' || t.url === 'chrome://newtab') return false;
+        if (t.pendingUrl && t.pendingUrl.startsWith(SELF_URL)) return false;
+        return true;
+      });
     } catch {
       browserTabs = [];
     }
@@ -396,6 +406,7 @@
       : browserTabs;
 
     $currentTabsCount.textContent = `Tabs (${browserTabs.length})`;
+    $saveTabsBtn.style.display = browserTabs.length > 0 ? '' : 'none';
 
     list.forEach(tab => {
       const li = document.createElement('li');
@@ -562,6 +573,24 @@
       } else if (action === 'import-json') {
         pendingImportSpaceId = spaceId;
         $jsonFileInput.click();
+      } else if (action === 'export-json') {
+        const exportData = {
+          groups: space.collections.map(col => ({
+            name: col.name,
+            tabs: col.tabs.map(t => ({
+              title: t.title,
+              url: t.url,
+              favIconUrl: t.favicon,
+            })),
+          })),
+        };
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `${space.name}.json`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        showToast('Exported successfully!');
       } else if (action === 'change-icon') {
         showEmojiPicker((emoji) => {
           space.icon = emoji;
@@ -723,6 +752,71 @@
     if (e.target === $emojiPickerOverlay) hideEmojiPicker();
   });
 
+  // ═══ Settings ═══
+
+  let currentSettings = null;
+
+  async function openSettings() {
+    currentSettings = await StorageManager.getSettings();
+    document.getElementById('settingLanguage').value = currentSettings.language || 'en';
+    document.getElementById('settingTheme').value = currentSettings.theme || 'dark';
+    document.getElementById('settingOpenTabMode').value = currentSettings.openTabMode || 'redirect';
+    $settingsOverlay.hidden = false;
+  }
+
+  function closeSettings() {
+    $settingsOverlay.hidden = true;
+  }
+
+  async function onSettingChange() {
+    if (!currentSettings) return;
+    currentSettings.language = document.getElementById('settingLanguage').value;
+    currentSettings.theme = document.getElementById('settingTheme').value;
+    currentSettings.openTabMode = document.getElementById('settingOpenTabMode').value;
+    await StorageManager.saveSettings(currentSettings);
+    applyTheme(currentSettings.theme);
+  }
+
+  function applyTheme(theme) {
+    const root = document.documentElement;
+    let resolved = theme;
+    if (theme === 'system') {
+      resolved = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+    }
+    if (resolved === 'light') {
+      root.style.setProperty('--bg-primary', '#f0f0f4');
+      root.style.setProperty('--bg-sidebar', '#e4e4ec');
+      root.style.setProperty('--bg-card', '#ffffff');
+      root.style.setProperty('--bg-hover', '#e8e8f0');
+      root.style.setProperty('--bg-input', '#f5f5fa');
+      root.style.setProperty('--text-primary', '#1a1a2e');
+      root.style.setProperty('--text-secondary', '#555555');
+      root.style.setProperty('--text-muted', '#999999');
+      root.style.setProperty('--border-color', '#d0d0dd');
+    } else {
+      root.style.setProperty('--bg-primary', '#1a1a2e');
+      root.style.setProperty('--bg-sidebar', '#0f0f1a');
+      root.style.setProperty('--bg-card', '#2a2a3e');
+      root.style.setProperty('--bg-hover', '#33334d');
+      root.style.setProperty('--bg-input', '#1e1e32');
+      root.style.setProperty('--text-primary', '#e0e0e0');
+      root.style.setProperty('--text-secondary', '#888888');
+      root.style.setProperty('--text-muted', '#555555');
+      root.style.setProperty('--border-color', '#2a2a3e');
+    }
+  }
+
+  $settingsBtn.addEventListener('click', openSettings);
+  $settingsClose.addEventListener('click', closeSettings);
+  $settingsOverlay.addEventListener('click', (e) => {
+    if (e.target === $settingsOverlay) closeSettings();
+  });
+
+  // Bind change events on all settings controls
+  ['settingLanguage', 'settingTheme', 'settingOpenTabMode'].forEach(id => {
+    document.getElementById(id).addEventListener('change', onSettingChange);
+  });
+
   // ═══ JSON Import ═══
 
   let pendingImportSpaceId = null;
@@ -844,8 +938,16 @@
     setTimeout(() => t.remove(), 2000);
   }
 
-  function openUrl(url) {
-    try { chrome.tabs.create({ url }); } catch { window.open(url, '_blank'); }
+  async function openUrl(url) {
+    const settings = await StorageManager.getSettings();
+    const mode = settings.openTabMode || 'redirect';
+    try {
+      if (mode === 'redirect') {
+        chrome.tabs.update({ url });
+      } else {
+        chrome.tabs.create({ url });
+      }
+    } catch { window.open(url, '_blank'); }
   }
 
   async function saveAll() { await StorageManager.saveSpaces(spaces); }

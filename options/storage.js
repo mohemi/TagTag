@@ -139,26 +139,7 @@ class StorageManager {
   static async seedDefaults() {
     const spaces = await StorageManager.getSpaces();
     if (spaces.length > 0) return; // already seeded
-
-    const defaults = [
-      { name: 'Window', icon: '🪟' },
-      { name: 'Fix', icon: '📌' },
-      { name: 'Imported from Bookmarks', icon: '📚' },
-      { name: 'Temp', icon: '⏳' },
-    ];
-
-    const seeded = defaults.map((d, i) => ({
-      id: StorageManager.generateId() + i,
-      name: d.name,
-      icon: d.icon,
-      order: i,
-      collections: [],
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    }));
-
-    await StorageManager.saveSpaces(seeded);
-    return seeded;
+    return [];
   }
 
   // ── Settings ──
@@ -171,6 +152,10 @@ class StorageManager {
       gridColumns: 7,
       autoSave: true,
       syncEnabled: false,
+      language: 'en',
+      openTabMode: 'redirect',
+      showFavicon: true,
+      confirmDelete: true,
     };
   }
 
