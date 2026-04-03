@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "TagTag - Tab Management Tool",
+  "version": "1.0.0",
+  "description": "A powerful tab management tool for organizing browser tabs into spaces and collections.",
+  "permissions": [
+    "tabs",
+    "bookmarks",
+    "storage",
+    "tabGroups"
+  ],
+  "options_page": "options/options.html",
+  "chrome_url_overrides": {
+    "newtab": "options/options.html"
+  },
+  "background": {
+    "service_worker": "background/service-worker.js"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "assets/icons/icon16.png",
+      "48": "assets/icons/icon48.png",
+      "128": "assets/icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "assets/icons/icon16.png",
+    "48": "assets/icons/icon48.png",
+    "128": "assets/icons/icon128.png"
+  }
+}
