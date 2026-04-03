@@ -79,7 +79,7 @@
     bindEvents();
   }
 
-  const DEFAULT_FAVICON = chrome.runtime.getURL('assets/icons/icon48.png');
+  const DEFAULT_FAVICON = chrome.runtime.getURL('assets/icons/icon128.png');
   const SELF_URL = chrome.runtime.getURL('options/options.html');
 
   async function loadBrowserTabs() {
