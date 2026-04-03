@@ -12,19 +12,17 @@
     <aside class="sidebar-left" id="sidebarLeft">
       <div class="sidebar-header">
         <span class="logo">TagTag</span>
-      </div>
-      <div class="spaces-label">
-        <span>Spaces</span>
-        <button class="btn-icon spaces-add-btn" id="addSpaceBtn" title="New Space">+</button>
-      </div>
-      <ul class="spaces-list" id="spacesList"></ul>
-      <div class="sidebar-left-footer">
         <button class="sidebar-left-toggle" id="sidebarLeftToggle" title="Toggle sidebar">
           <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
             <path d="M9 3l-4 4 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
       </div>
+      <div class="spaces-label">
+        <span>Spaces</span>
+        <button class="btn-icon spaces-add-btn" id="addSpaceBtn" title="New Space">+</button>
+      </div>
+      <ul class="spaces-list" id="spacesList"></ul>
     </aside>
 
     <!-- Left resize handle -->
@@ -62,7 +60,16 @@
     <!-- Right Sidebar: Current Tabs -->
     <aside class="sidebar-right" id="sidebarRight">
       <div class="sidebar-right-header">
-        <span>Current Tabs</span>
+        <div class="header-left">
+          <span id="currentTabsCount">Tabs (0)</span>
+        </div>
+        <button class="btn-save" id="saveTabsBtn" title="Save all tabs to current space">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <path d="M12.5 14h-9A1.5 1.5 0 012 12.5v-9A1.5 1.5 0 013.5 2H11l3 3v7.5a1.5 1.5 0 01-1.5 1.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M10 14V9H5v5M5 2v3h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Save
+        </button>
       </div>
       <ul class="current-tabs-list" id="currentTabsList"></ul>
     </aside>

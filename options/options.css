@@ -116,6 +116,7 @@ html, body {
 .sidebar-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 16px 14px 8px;
 }
 
@@ -203,14 +204,7 @@ html, body {
   color: var(--text-primary);
 }
 
-/* ── Left Sidebar Footer & Toggle ── */
-.sidebar-left-footer {
-  padding: 8px;
-  border-top: 1px solid var(--border-color);
-  display: flex;
-  justify-content: flex-end;
-}
-
+/* ── Left Sidebar Toggle ── */
 .sidebar-left-toggle {
   width: 24px;
   height: 24px;
@@ -270,10 +264,6 @@ html, body {
 .app.sidebar-left-collapsed .space-item .space-icon {
   width: auto;
   font-size: 18px;
-}
-
-.app.sidebar-left-collapsed .sidebar-left-footer {
-  justify-content: center;
 }
 
 /* ═══ Main Content ═══ */
@@ -414,6 +404,22 @@ html, body {
   opacity: 1;
 }
 
+.collection-name {
+  cursor: text;
+}
+
+.collection-name-input {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--bg-input);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 2px 6px;
+  outline: none;
+  flex: 1;
+}
+
 /* ── Collection Drag Reorder ── */
 .collection-drag-handle {
   cursor: grab;
@@ -437,12 +443,52 @@ html, body {
   opacity: 0.4;
 }
 
+.collection-section.collection-drag-placeholder {
+  opacity: 0.3;
+  border: 2px dashed var(--accent);
+  border-radius: 8px;
+}
+
+.collection-drag-clone {
+  position: fixed;
+  z-index: 999;
+  pointer-events: none;
+  opacity: 0.9;
+  background: var(--bg-primary);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  transform: scale(1.02);
+}
+
 .collection-section.drag-above {
   border-top: 2px solid var(--accent);
 }
 
 .collection-section.drag-below {
   border-bottom: 2px solid var(--accent);
+}
+
+/* ── Empty Collection Placeholder ── */
+.tab-grid-empty {
+  border: 2px dashed var(--border-color);
+  border-radius: 8px;
+  padding: 28px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: 8px 0;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.tab-grid-empty.drag-over {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.tab-grid-empty.hidden {
+  display: none;
 }
 
 /* ── Tab Grid ── */
@@ -482,7 +528,6 @@ html, body {
   height: 28px;
   border-radius: 6px;
   object-fit: contain;
-  background: var(--bg-primary);
   flex-shrink: 0;
 }
 
@@ -502,10 +547,7 @@ html, body {
   position: absolute;
   top: 4px;
   right: 4px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: rgba(0,0,0,0.4);
+  background: none;
   color: var(--text-secondary);
   border: none;
   cursor: pointer;
@@ -517,8 +559,32 @@ html, body {
   letter-spacing: 1px;
 }
 
+.tab-card .tab-url {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 3px 8px;
+  background: none;
+  color: var(--text-muted);
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-radius: 0 0 var(--card-radius) var(--card-radius);
+  display: none;
+}
+
+.tab-card:hover .tab-url {
+  display: block;
+}
+
 .tab-card:hover .tab-remove {
   display: flex;
+}
+
+.app.resizing .sidebar-toggle-circle {
+  transition: none;
 }
 
 /* Drop zone highlight */
@@ -571,13 +637,44 @@ html, body {
   white-space: nowrap;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+}
+
+.sidebar-right-header .header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sidebar-right-header .btn-save {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.sidebar-right-header .btn-save:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.sidebar-right-header .btn-save svg {
+  flex-shrink: 0;
 }
 
 /* ── Right Sidebar Toggle (absolute, stays visible when hidden) ── */
 .sidebar-toggle-circle {
   position: absolute;
   right: var(--right-sidebar-width);
-  top: 18px;
+  top: 14px;
   transform: translateX(50%);
   z-index: 50;
   width: 24px;
@@ -620,24 +717,30 @@ html, body {
   list-style: none;
   flex: 1;
   overflow-y: auto;
-  padding: 4px 0;
+  padding: 8px 10px;
 }
 
 .current-tab-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
+  gap: 12px;
+  padding: 12px 14px;
   cursor: pointer;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   font-size: 13px;
   transition: background 0.12s;
-  min-height: 40px;
+  min-height: 56px;
+  border-bottom: 1px solid var(--border-color);
+  border-radius: 8px;
+  position: relative;
+}
+
+.current-tab-item:last-child {
+  border-bottom: none;
 }
 
 .current-tab-item:hover {
   background: var(--bg-hover);
-  color: var(--text-primary);
 }
 
 .current-tab-item[draggable="true"] {
@@ -649,16 +752,46 @@ html, body {
 }
 
 .current-tab-item img {
-  width: 18px;
-  height: 18px;
-  border-radius: 3px;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
   flex-shrink: 0;
+  object-fit: contain;
+  background: var(--bg-card);
 }
 
 .current-tab-item span {
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+  line-height: 1.4;
+}
+
+.current-tab-item .tab-close-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px;
+  opacity: 0;
+  transition: opacity 0.12s, color 0.12s;
+}
+
+.current-tab-item:hover .tab-close-btn {
+  opacity: 1;
+}
+
+.current-tab-item .tab-close-btn:hover {
+  color: var(--text-primary);
 }
 
 /* ═══ Buttons ═══ */

@@ -35,6 +35,8 @@
   const $emojiPickerOverlay = document.getElementById('emojiPickerOverlay');
   const $emojiPickerGrid = document.getElementById('emojiPickerGrid');
   const $emojiPickerClose = document.getElementById('emojiPickerClose');
+  const $saveTabsBtn = document.getElementById('saveTabsBtn');
+  const $currentTabsCount = document.getElementById('currentTabsCount');
 
   // ── Emoji list ──
   const EMOJIS = [
@@ -65,9 +67,12 @@
     bindEvents();
   }
 
+  const SELF_URL = chrome.runtime.getURL('options/options.html');
+
   async function loadBrowserTabs() {
     try {
-      browserTabs = await chrome.tabs.query({});
+      const all = await chrome.tabs.query({});
+      browserTabs = all.filter(t => !t.url || !t.url.startsWith(SELF_URL));
     } catch {
       browserTabs = [];
     }
@@ -129,10 +134,9 @@
       section.className = 'collection-section';
       section.dataset.collectionId = col.id;
 
-      // ── Header (draggable for reorder) ──
+      // ── Header ──
       const header = document.createElement('div');
       header.className = 'collection-header';
-      header.draggable = true;
       header.innerHTML = `
         <span class="collection-drag-handle" title="Drag to reorder">⠿</span>
         <span class="collection-toggle ${col.collapsed ? 'collapsed' : ''}">▼</span>
@@ -143,65 +147,46 @@
         </div>
       `;
 
-      // Collection drag reorder
-      header.addEventListener('dragstart', (e) => {
-        dragSource = { type: 'collection', spaceId: space.id, collectionId: col.id };
-        e.dataTransfer.setData('text/plain', col.id);
-        e.dataTransfer.effectAllowed = 'move';
-        section.classList.add('dragging');
-      });
-      header.addEventListener('dragend', () => {
-        section.classList.remove('dragging');
-        dragSource = null;
-        document.querySelectorAll('.collection-section.drag-above, .collection-section.drag-below').forEach(el => {
-          el.classList.remove('drag-above', 'drag-below');
-        });
-      });
-
-      // Drop target for collection reorder
-      section.addEventListener('dragover', (e) => {
-        if (!dragSource || dragSource.type !== 'collection') return;
+      // Collection reorder via custom mousedown drag
+      const dragHandle = header.querySelector('.collection-drag-handle');
+      dragHandle.addEventListener('mousedown', (e) => {
         e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        const rect = section.getBoundingClientRect();
-        const midY = rect.top + rect.height / 2;
-        section.classList.remove('drag-above', 'drag-below');
-        if (e.clientY < midY) {
-          section.classList.add('drag-above');
-        } else {
-          section.classList.add('drag-below');
-        }
-      });
-      section.addEventListener('dragleave', () => {
-        section.classList.remove('drag-above', 'drag-below');
-      });
-      section.addEventListener('drop', (e) => {
-        e.preventDefault();
-        section.classList.remove('drag-above', 'drag-below');
-        if (!dragSource || dragSource.type !== 'collection') return;
-        if (dragSource.collectionId === col.id) return;
-
-        const fromIdx = space.collections.findIndex(c => c.id === dragSource.collectionId);
-        const toIdx = space.collections.findIndex(c => c.id === col.id);
-        if (fromIdx === -1 || toIdx === -1) return;
-
-        const [moved] = space.collections.splice(fromIdx, 1);
-        const rect = section.getBoundingClientRect();
-        const midY = e.clientY;
-        const insertIdx = midY < rect.top + rect.height / 2 ? toIdx : toIdx + (fromIdx < toIdx ? 0 : 1);
-        space.collections.splice(insertIdx, 0, moved);
-
-        space.collections.forEach((c, i) => c.order = i);
-        renderCollections();
-        saveAll();
-        showToast(`Moved "${moved.name}"`);
+        startCollectionDrag(e, section, col.id, space);
       });
 
       header.addEventListener('click', (e) => {
-        if (e.target.closest('.collection-actions') || e.target.closest('.collection-drag-handle')) return;
+        if (e.target.closest('.collection-actions') || e.target.closest('.collection-drag-handle') || e.target.closest('.collection-name')) return;
         col.collapsed = !col.collapsed;
         renderCollections();
         saveAll();
+      });
+
+      // Click collection name to inline rename
+      header.querySelector('.collection-name').addEventListener('click', (e) => {
+        e.stopPropagation();
+        const nameEl = e.target;
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = col.name;
+        input.className = 'collection-name-input';
+        nameEl.replaceWith(input);
+        input.focus();
+        input.select();
+
+        function commit() {
+          const val = input.value.trim();
+          if (val && val !== col.name) {
+            col.name = val;
+            saveAll();
+          }
+          renderCollections();
+        }
+
+        input.addEventListener('blur', commit);
+        input.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter') { input.blur(); }
+          else if (ev.key === 'Escape') { input.value = col.name; input.blur(); }
+        });
       });
 
       header.querySelector('.collection-rename-btn').addEventListener('click', () => {
@@ -225,8 +210,33 @@
       section.appendChild(header);
 
       // ── Tab Grid ──
+      const tabs = filterTabs(col.tabs);
+
+      // Empty placeholder (dashed box)
+      const emptyPlaceholder = document.createElement('div');
+      emptyPlaceholder.className = 'tab-grid-empty' + (col.collapsed ? ' hidden' : '') + (tabs.length > 0 ? ' hidden' : '');
+      emptyPlaceholder.textContent = 'Drag tabs here';
+      emptyPlaceholder.dataset.spaceId = space.id;
+      emptyPlaceholder.dataset.collectionId = col.id;
+
+      // Drop zone for empty placeholder
+      emptyPlaceholder.addEventListener('dragover', (e) => {
+        if (dragSource && dragSource.type === 'collection') return;
+        e.preventDefault();
+        emptyPlaceholder.classList.add('drag-over');
+      });
+      emptyPlaceholder.addEventListener('dragleave', () => { emptyPlaceholder.classList.remove('drag-over'); });
+      emptyPlaceholder.addEventListener('drop', (e) => {
+        if (dragSource && dragSource.type === 'collection') return;
+        e.preventDefault();
+        emptyPlaceholder.classList.remove('drag-over');
+        handleDrop(e, space.id, col.id);
+      });
+
+      section.appendChild(emptyPlaceholder);
+
       const grid = document.createElement('div');
-      grid.className = 'tab-grid' + (col.collapsed ? ' hidden' : '');
+      grid.className = 'tab-grid' + (col.collapsed ? ' hidden' : '') + (tabs.length === 0 ? ' hidden' : '');
       grid.dataset.spaceId = space.id;
       grid.dataset.collectionId = col.id;
 
@@ -244,7 +254,6 @@
         handleDrop(e, space.id, col.id);
       });
 
-      const tabs = filterTabs(col.tabs);
       tabs.forEach(tab => {
         grid.appendChild(createTabCard(tab, space.id, col.id));
       });
@@ -272,6 +281,7 @@
       <img class="tab-favicon" src="${esc(faviconUrl)}" alt="">
       <span class="tab-title">${esc(tab.title)}</span>
       <button class="tab-remove" title="More">···</button>
+      <span class="tab-url" title="${esc(tab.url)}">${esc(domain || tab.url)}</span>
     `;
 
     // Fallback favicon on error (no inline handler for CSP)
@@ -304,6 +314,76 @@
     return card;
   }
 
+  // ═══ Collection Drag Reorder (custom mousedown) ═══
+
+  function startCollectionDrag(e, sectionEl, colId, space) {
+    const allSections = Array.from($collectionsArea.querySelectorAll('.collection-section'));
+    const fromIdx = allSections.indexOf(sectionEl);
+    if (fromIdx === -1) return;
+
+    const rect = sectionEl.getBoundingClientRect();
+    const offsetY = e.clientY - rect.top;
+
+    // Create floating clone
+    const clone = sectionEl.cloneNode(true);
+    clone.className = 'collection-section collection-drag-clone';
+    clone.style.width = rect.width + 'px';
+    clone.style.left = rect.left + 'px';
+    clone.style.top = (e.clientY - offsetY) + 'px';
+    document.body.appendChild(clone);
+
+    // Hide original and add placeholder
+    sectionEl.classList.add('collection-drag-placeholder');
+
+    let currentIdx = fromIdx;
+
+    function onMove(e2) {
+      clone.style.top = (e2.clientY - offsetY) + 'px';
+
+      // Find which section we're hovering over
+      for (let i = 0; i < allSections.length; i++) {
+        if (allSections[i] === sectionEl) continue;
+        const r = allSections[i].getBoundingClientRect();
+        const midY = r.top + r.height / 2;
+        if (e2.clientY > r.top && e2.clientY < r.bottom) {
+          const targetIdx = i;
+          if (targetIdx !== currentIdx) {
+            // Move the placeholder element in DOM
+            if (e2.clientY < midY) {
+              $collectionsArea.insertBefore(sectionEl, allSections[i]);
+            } else {
+              $collectionsArea.insertBefore(sectionEl, allSections[i].nextSibling);
+            }
+            // Refresh order
+            allSections.length = 0;
+            allSections.push(...$collectionsArea.querySelectorAll('.collection-section'));
+            currentIdx = allSections.indexOf(sectionEl);
+          }
+          break;
+        }
+      }
+    }
+
+    function onUp() {
+      clone.remove();
+      sectionEl.classList.remove('collection-drag-placeholder');
+
+      // Compute new order from DOM
+      const newOrder = Array.from($collectionsArea.querySelectorAll('.collection-section')).map(el => el.dataset.collectionId);
+      const reordered = newOrder.map(id => space.collections.find(c => c.id === id)).filter(Boolean);
+      reordered.forEach((c, i) => c.order = i);
+      space.collections = reordered;
+      saveAll();
+      renderCollections();
+
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    }
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
+
   // ═══ Render: Right Sidebar (Current Browser Tabs) ═══
 
   function renderCurrentTabs() {
@@ -314,21 +394,36 @@
           (t.url || '').toLowerCase().includes(searchQuery.toLowerCase()))
       : browserTabs;
 
+    $currentTabsCount.textContent = `Tabs (${browserTabs.length})`;
+
     list.forEach(tab => {
       const li = document.createElement('li');
       li.className = 'current-tab-item';
       li.draggable = true;
 
-      const favicon = tab.favIconUrl || `https://www.google.com/s2/favicons?domain=${getDomain(tab.url)}&sz=16`;
+      const favicon = tab.favIconUrl || `https://www.google.com/s2/favicons?domain=${getDomain(tab.url)}&sz=32`;
       li.innerHTML = `
         <img src="${esc(favicon)}" alt="">
         <span>${esc(tab.title || tab.url || 'Untitled')}</span>
+        <button class="tab-close-btn" title="Close tab">&times;</button>
       `;
 
       // Fallback: hide broken favicon (no inline handler for CSP)
       li.querySelector('img').addEventListener('error', function () { this.style.display = 'none'; }, { once: true });
 
-      li.addEventListener('click', () => {
+      // Close button
+      li.querySelector('.tab-close-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        try {
+          chrome.tabs.remove(tab.id, () => {
+            browserTabs = browserTabs.filter(t => t.id !== tab.id);
+            renderCurrentTabs();
+          });
+        } catch {}
+      });
+
+      li.addEventListener('click', (e) => {
+        if (e.target.closest('.tab-close-btn')) return;
         try {
           chrome.tabs.update(tab.id, { active: true });
           chrome.windows.update(tab.windowId, { focused: true });
@@ -411,7 +506,12 @@
 
     $addCollectionBtn.addEventListener('click', () => {
       if (!activeSpaceId) return;
-      showModal('New Collection', '', async (name) => {
+      const now = new Date();
+      const timestamp = now.toLocaleString('en-US', {
+        month: '2-digit', day: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
+      }).replace(',', ',');
+      showModal('New Collection', timestamp, async (name) => {
         if (!name.trim()) return;
         await StorageManager.addCollection(activeSpaceId, name.trim());
         spaces = await StorageManager.getSpaces();
@@ -481,6 +581,62 @@
     $sidebarLeftToggle.addEventListener('click', () => {
       document.querySelector('.app').classList.toggle('sidebar-left-collapsed');
     });
+
+    // Save all tabs to current space
+    $saveTabsBtn.addEventListener('click', async () => {
+      if (!activeSpaceId || browserTabs.length === 0) return;
+
+      const now = new Date();
+      const timestamp = now.toLocaleString('en-US', {
+        month: '2-digit', day: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
+      }).replace(',', ',');
+
+      // Create collection with timestamp name
+      await StorageManager.addCollection(activeSpaceId, timestamp);
+      spaces = await StorageManager.getSpaces();
+
+      const space = spaces.find(s => s.id === activeSpaceId);
+      if (!space) return;
+      const col = space.collections[space.collections.length - 1];
+
+      // Add all browser tabs to the collection
+      for (const tab of browserTabs) {
+        col.tabs.push({
+          id: StorageManager.generateId(),
+          collectionId: col.id,
+          title: tab.title || '',
+          url: tab.url || '',
+          favicon: tab.favIconUrl || '',
+          order: col.tabs.length,
+          pinned: false,
+          createdAt: Date.now(),
+        });
+      }
+
+      // Move new collection to the top
+      space.collections.pop();
+      space.collections.unshift(col);
+      space.collections.forEach((c, i) => c.order = i);
+
+      await saveAll();
+      renderCollections();
+
+      // Close all tabs except the current TagTag page
+      const currentTab = await new Promise(resolve => {
+        chrome.tabs.getCurrent((t) => resolve(t));
+      });
+      const tabsToClose = browserTabs.filter(t => t.id !== (currentTab && currentTab.id));
+      const idsToClose = tabsToClose.map(t => t.id);
+      if (idsToClose.length > 0) {
+        try { await chrome.tabs.remove(idsToClose); } catch {}
+      }
+
+      // Refresh browser tabs list
+      await loadBrowserTabs();
+      renderCurrentTabs();
+      showToast(`Saved ${tabsToClose.length} tabs!`);
+    });
   }
 
   // ═══ Tab Context Menu ═══
@@ -502,15 +658,16 @@
 
   $tabContextMenu.addEventListener('click', (e) => {
     const action = e.target.dataset.action;
+    const target = tabMenuTarget;
     hideTabContextMenu();
-    if (!action || !tabMenuTarget) return;
+    if (!action || !target) return;
 
-    const { spaceId, collectionId, tab } = tabMenuTarget;
-    const sp = spaces.find(s => s.id === spaceId);
+    const { spaceId, collectionId, tab } = target;
+    const sp = spaces.find(s => s.id === target.spaceId);
     if (!sp) return;
-    const col = sp.collections.find(c => c.id === collectionId);
+    const col = sp.collections.find(c => c.id === target.collectionId);
     if (!col) return;
-    const t = col.tabs.find(x => x.id === tab.id);
+    const t = col.tabs.find(x => x.id === target.tab.id);
     if (!t) return;
 
     if (action === 'tab-rename') {
@@ -530,7 +687,7 @@
         }
       });
     } else if (action === 'tab-delete') {
-      col.tabs = col.tabs.filter(x => x.id !== tab.id);
+      col.tabs = col.tabs.filter(x => x.id !== target.tab.id);
       renderCollections();
       saveAll();
     }
@@ -733,10 +890,12 @@
           if (side === 'left') {
             const newW = Math.max(120, Math.min(400, startLeftW + dx));
             leftWidth = newW;
+            document.documentElement.style.setProperty('--sidebar-width', newW + 'px');
             $app.style.gridTemplateColumns = `${newW}px 4px 1fr 4px ${rightWidth}px`;
           } else {
             const newW = Math.max(160, Math.min(500, startRightW - dx));
             rightWidth = newW;
+            document.documentElement.style.setProperty('--right-sidebar-width', newW + 'px');
             $app.style.gridTemplateColumns = `${leftWidth}px 4px 1fr 4px ${newW}px`;
           }
         }
@@ -760,7 +919,22 @@
     startDrag($resizeRight, 'right');
   }
 
+  // ═══ Listen for Tab Changes ═══
+
+  function listenTabChanges() {
+    async function refresh() {
+      await loadBrowserTabs();
+      renderCurrentTabs();
+    }
+    chrome.tabs.onCreated.addListener(refresh);
+    chrome.tabs.onRemoved.addListener(refresh);
+    chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+      if (changeInfo.title || changeInfo.favIconUrl || changeInfo.url) refresh();
+    });
+  }
+
   // ═══ Start ═══
   await init();
   initResize();
+  listenTabChanges();
 })();
