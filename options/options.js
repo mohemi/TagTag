@@ -67,6 +67,7 @@
     bindEvents();
   }
 
+  const DEFAULT_FAVICON = chrome.runtime.getURL('assets/icons/icon48.png');
   const SELF_URL = chrome.runtime.getURL('options/options.html');
 
   async function loadBrowserTabs() {
@@ -287,7 +288,7 @@
     // Fallback favicon on error (no inline handler for CSP)
     const img = card.querySelector('.tab-favicon');
     img.addEventListener('error', () => {
-      img.src = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+      img.src = DEFAULT_FAVICON;
     }, { once: true });
 
     // Drag card between collections
@@ -408,8 +409,8 @@
         <button class="tab-close-btn" title="Close tab">&times;</button>
       `;
 
-      // Fallback: hide broken favicon (no inline handler for CSP)
-      li.querySelector('img').addEventListener('error', function () { this.style.display = 'none'; }, { once: true });
+      // Fallback: use default favicon (no inline handler for CSP)
+      li.querySelector('img').addEventListener('error', function () { this.src = DEFAULT_FAVICON; }, { once: true });
 
       // Close button
       li.querySelector('.tab-close-btn').addEventListener('click', (e) => {
