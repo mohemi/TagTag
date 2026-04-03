@@ -76,8 +76,19 @@ const I18N = {
       more: 'More',
       dragToReorder: 'Drag to reorder',
 
-      // Settings
+      // Settings & Preferences
+      preferences: 'Preferences',
       settingsTitle: 'Settings',
+      aboutMe: 'About Me',
+      aboutTagTag: 'About TagTag',
+      aboutVersion: 'v0.0.1',
+      aboutDesc: 'TagTag is a tab management tool inspired by TabTab.',
+      aboutInfoTitle: 'TagTag Info',
+      aboutInfo1: 'The left sidebar shows all your workspaces. Click + to create a new space.',
+      aboutInfo2: 'The right side of the workspace shows the tabs currently open in your browser. You can drag them into the space area to add to collections.',
+      aboutInfo3: 'For more information, please refer to TagTag Docs.',
+      aboutContact: 'Contact Me',
+      aboutWeibo: 'Weibo',
       language: 'Language',
       theme: 'Theme',
       openTabMode: 'Open Tab Mode',
@@ -163,8 +174,19 @@ const I18N = {
       more: '更多',
       dragToReorder: '拖拽排序',
 
-      // Settings
+      // Settings & Preferences
+      preferences: '偏好设置',
       settingsTitle: '设置',
+      aboutMe: '关于我',
+      aboutTagTag: '关于 TagTag',
+      aboutVersion: 'v0.0.1',
+      aboutDesc: 'TagTag 是一个模仿 TabTab 的标签页管理工具。',
+      aboutInfoTitle: 'TagTag Info',
+      aboutInfo1: '左侧栏显示所有工作空间。点击 + 号创建新空间。',
+      aboutInfo2: '工作空间右侧显示浏览器中当前打开的标签页。您可以将它们拖动到空间区域以添加到收藏。',
+      aboutInfo3: '更多信息，请参考 TagTag Docs。',
+      aboutContact: '联系我',
+      aboutWeibo: '微博',
       language: '语言',
       theme: '主题',
       openTabMode: '打开标签方式',

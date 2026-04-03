@@ -38,8 +38,12 @@
   const $saveTabsBtn = document.getElementById('saveTabsBtn');
   const $currentTabsCount = document.getElementById('currentTabsCount');
   const $settingsBtn = document.getElementById('settingsBtn');
+  const $prefMenu = document.getElementById('prefMenu');
   const $settingsOverlay = document.getElementById('settingsOverlay');
   const $settingsClose = document.getElementById('settingsClose');
+  const $aboutOverlay = document.getElementById('aboutOverlay');
+  const $aboutClose = document.getElementById('aboutClose');
+  const $aboutBody = document.getElementById('aboutBody');
 
   // ── Emoji list ──
   const EMOJIS = [
@@ -100,8 +104,11 @@
     document.querySelector('.spaces-label span').textContent = t('spaces');
     $addSpaceBtn.title = t('newSpace');
     $sidebarLeftToggle.title = t('toggleSidebar');
-    document.querySelector('.settings-btn-text').textContent = t('settings');
-    $settingsBtn.title = t('settings');
+    document.querySelector('.settings-btn-text').textContent = t('preferences');
+    $settingsBtn.title = t('preferences');
+    // Pref menu items
+    $prefMenu.querySelector('[data-action="settings"]').textContent = t('settingsTitle');
+    $prefMenu.querySelector('[data-action="about"]').textContent = t('aboutMe');
 
     // Top bar
     $searchInput.placeholder = t('searchTabs');
@@ -901,10 +908,52 @@
     }
   }
 
-  $settingsBtn.addEventListener('click', openSettings);
+  // ═══ Preference Menu ═══
+
+  $settingsBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    $prefMenu.hidden = !$prefMenu.hidden;
+  });
+
+  $prefMenu.addEventListener('click', (e) => {
+    const action = e.target.dataset.action;
+    $prefMenu.hidden = true;
+    if (action === 'settings') {
+      openSettings();
+    } else if (action === 'about') {
+      openAbout();
+    }
+  });
+
+  document.addEventListener('click', () => { $prefMenu.hidden = true; });
+
   $settingsClose.addEventListener('click', closeSettings);
   $settingsOverlay.addEventListener('click', (e) => {
     if (e.target === $settingsOverlay) closeSettings();
+  });
+
+  // ═══ About ═══
+
+  function openAbout() {
+    $aboutBody.innerHTML = `
+      <h3>${t('aboutTagTag')}</h3>
+      <p class="about-version">${t('aboutVersion')}</p>
+      <p class="about-desc">${t('aboutDesc')}</p>
+      <h4>${t('aboutInfoTitle')}</h4>
+      <ul>
+        <li>${t('aboutInfo1')}</li>
+        <li>${t('aboutInfo2')}</li>
+        <li>${t('aboutInfo3')}</li>
+      </ul>
+      <h4>${t('aboutContact')}</h4>
+      <p>${t('aboutWeibo')}: <a href="https://weibo.com/u/1096688584" target="_blank">https://weibo.com/u/1096688584</a></p>
+    `;
+    $aboutOverlay.hidden = false;
+  }
+
+  $aboutClose.addEventListener('click', () => { $aboutOverlay.hidden = true; });
+  $aboutOverlay.addEventListener('click', (e) => {
+    if (e.target === $aboutOverlay) $aboutOverlay.hidden = true;
   });
 
   ['settingLanguage', 'settingTheme', 'settingOpenTabMode'].forEach(id => {
