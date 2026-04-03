@@ -136,10 +136,45 @@ class StorageManager {
 
   // ── Default Data Seeding ──
 
-  static async seedDefaults() {
+  static async seedDefaults(spaceName = 'Default', collectionName = 'Collection', defaultIcon = '') {
     const spaces = await StorageManager.getSpaces();
     if (spaces.length > 0) return; // already seeded
-    return [];
+    const spaceId = StorageManager.generateId();
+    const colId = StorageManager.generateId();
+    const defaultSpace = {
+      id: spaceId,
+      name: spaceName,
+      icon: defaultIcon,
+      order: 0,
+      collections: [
+        {
+          id: colId,
+          spaceId,
+          name: collectionName,
+          icon: '',
+          order: 0,
+          tabs: [
+            {
+              id: StorageManager.generateId(),
+              collectionId: colId,
+              title: '微博',
+              url: 'https://weibo.com',
+              favicon: 'https://www.google.com/s2/favicons?domain=weibo.com&sz=32',
+              order: 0,
+              pinned: false,
+              createdAt: Date.now(),
+            },
+          ],
+          collapsed: false,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+      ],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    await StorageManager.saveSpaces([defaultSpace]);
+    return [defaultSpace];
   }
 
   // ── Settings ──

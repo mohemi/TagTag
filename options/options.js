@@ -53,15 +53,19 @@
     return EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
   }
 
+  const t = I18N.t.bind(I18N);
+
   // ═══ Init ═══
 
   async function init() {
-    await StorageManager.seedDefaults();
+    const settings = await StorageManager.getSettings();
+    I18N.setLang(settings.language || 'en');
+    await StorageManager.seedDefaults(t('defaultSpace'), t('defaultCollection'), DEFAULT_FAVICON);
     spaces = await StorageManager.getSpaces();
 
-    const settings = await StorageManager.getSettings();
     activeSpaceId = settings.defaultSpace || (spaces[0] && spaces[0].id);
     applyTheme(settings.theme);
+    applyLanguage();
 
     await loadBrowserTabs();
 
@@ -89,7 +93,65 @@
     }
   }
 
+  // ═══ Apply Language to static HTML elements ═══
+
+  function applyLanguage() {
+    // Sidebar
+    document.querySelector('.spaces-label span').textContent = t('spaces');
+    $addSpaceBtn.title = t('newSpace');
+    $sidebarLeftToggle.title = t('toggleSidebar');
+    document.querySelector('.settings-btn-text').textContent = t('settings');
+    $settingsBtn.title = t('settings');
+
+    // Top bar
+    $searchInput.placeholder = t('searchTabs');
+    $addCollectionBtn.textContent = t('addCollection');
+
+    // Right sidebar
+    $saveTabsBtn.title = t('saveAllTabs');
+    $saveTabsBtn.querySelector('svg').nextSibling.textContent = ' ' + t('save');
+    $sidebarToggle.title = t('toggleCurrentTabs');
+
+    // Modal
+    $modalCancel.textContent = t('cancel');
+    $modalConfirm.textContent = t('confirm');
+
+    // Space context menu
+    $contextMenu.querySelector('[data-action="import-json"]').textContent = t('importJson');
+    $contextMenu.querySelector('[data-action="export-json"]').textContent = t('exportJson');
+    $contextMenu.querySelector('[data-action="change-icon"]').textContent = t('changeIcon');
+    $contextMenu.querySelector('[data-action="rename"]').textContent = t('editName');
+    $contextMenu.querySelector('[data-action="delete"]').textContent = t('delete');
+
+    // Tab context menu
+    $tabContextMenu.querySelector('[data-action="tab-rename"]').textContent = t('rename');
+    $tabContextMenu.querySelector('[data-action="tab-edit-url"]').textContent = t('editUrl');
+    $tabContextMenu.querySelector('[data-action="tab-delete"]').textContent = t('delete');
+
+    // Emoji picker
+    document.querySelector('.emoji-picker-header h3').textContent = t('chooseIcon');
+
+    // Settings
+    document.querySelector('.settings-header h2').textContent = t('settingsTitle');
+    const settingsLabels = document.querySelectorAll('.settings-row > label:first-child');
+    if (settingsLabels[0]) settingsLabels[0].textContent = t('language');
+    if (settingsLabels[1]) settingsLabels[1].textContent = t('theme');
+    if (settingsLabels[2]) settingsLabels[2].textContent = t('openTabMode');
+
+    // Settings select options
+    const themeSelect = document.getElementById('settingTheme');
+    themeSelect.options[0].textContent = t('themeSystem');
+    themeSelect.options[1].textContent = t('themeDark');
+    themeSelect.options[2].textContent = t('themeLight');
+
+    const modeSelect = document.getElementById('settingOpenTabMode');
+    modeSelect.options[0].textContent = t('modeRedirect');
+    modeSelect.options[1].textContent = t('modeNewTab');
+  }
+
   // ═══ Render: Spaces Sidebar ═══
+
+  let spaceDragId = null;
 
   function renderSpaces() {
     $spacesList.innerHTML = '';
@@ -97,15 +159,52 @@
       const li = document.createElement('li');
       li.className = 'space-item' + (space.id === activeSpaceId ? ' active' : '');
       li.dataset.id = space.id;
+      li.draggable = true;
       li.innerHTML = `
-        <span class="space-icon">${space.icon || '•'}</span>
+        <span class="space-icon">${space.icon && (space.icon.startsWith('http') || space.icon.startsWith('chrome-extension://')) ? `<img src="${esc(space.icon)}" width="16" height="16" style="vertical-align:middle;border-radius:3px;">` : (space.icon || '•')}</span>
         <span class="space-name">${esc(space.name)}</span>
-        <button class="space-menu-btn" data-id="${space.id}" title="More">···</button>
+        <button class="space-menu-btn" data-id="${space.id}" title="${t('more')}">···</button>
       `;
       li.addEventListener('click', (e) => {
         if (e.target.closest('.space-menu-btn')) return;
         switchSpace(space.id);
       });
+
+      // Drag reorder
+      li.addEventListener('dragstart', (e) => {
+        spaceDragId = space.id;
+        li.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      li.addEventListener('dragend', () => {
+        spaceDragId = null;
+        li.classList.remove('dragging');
+        document.querySelectorAll('.space-item.drag-over').forEach(el => el.classList.remove('drag-over'));
+      });
+      li.addEventListener('dragover', (e) => {
+        if (!spaceDragId || spaceDragId === space.id) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        li.classList.add('drag-over');
+      });
+      li.addEventListener('dragleave', () => {
+        li.classList.remove('drag-over');
+      });
+      li.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        li.classList.remove('drag-over');
+        if (!spaceDragId || spaceDragId === space.id) return;
+        const fromIdx = spaces.findIndex(s => s.id === spaceDragId);
+        const toIdx = spaces.findIndex(s => s.id === space.id);
+        if (fromIdx === -1 || toIdx === -1) return;
+        const [moved] = spaces.splice(fromIdx, 1);
+        spaces.splice(toIdx, 0, moved);
+        spaces.forEach((s, i) => s.order = i);
+        await StorageManager.saveSpaces(spaces);
+        renderSpaces();
+        spaceDragId = null;
+      });
+
       $spacesList.appendChild(li);
     });
   }
@@ -132,9 +231,9 @@
     if (!space.collections || space.collections.length === 0) {
       $collectionsArea.innerHTML = `
         <div class="empty-state">
-          <p>No collections yet. Click "+ Add collection" or import JSON via space menu.</p>
+          <p>${t('emptyState')}</p>
         </div>`;
-      $tabCount.textContent = 'Tabs (0)';
+      $tabCount.textContent = t('tabsCount', 0);
       return;
     }
 
@@ -149,12 +248,12 @@
       const header = document.createElement('div');
       header.className = 'collection-header';
       header.innerHTML = `
-        <span class="collection-drag-handle" title="Drag to reorder">⠿</span>
+        <span class="collection-drag-handle" title="${t('dragToReorder')}">⠿</span>
         <span class="collection-toggle ${col.collapsed ? 'collapsed' : ''}">▼</span>
         <span class="collection-name">${esc(col.name)}</span>
         <div class="collection-actions">
-          <button class="btn-icon collection-rename-btn" title="Rename" style="font-size:13px">✎</button>
-          <button class="btn-icon collection-delete-btn" title="Delete" style="font-size:14px">&times;</button>
+          <button class="btn-icon collection-rename-btn" title="${t('rename')}" style="font-size:13px">✎</button>
+          <button class="btn-icon collection-delete-btn" title="${t('delete')}" style="font-size:14px">&times;</button>
         </div>
       `;
 
@@ -201,7 +300,7 @@
       });
 
       header.querySelector('.collection-rename-btn').addEventListener('click', () => {
-        showModal('Rename Collection', col.name, (newName) => {
+        showModal(t('modalRenameCollection'), col.name, (newName) => {
           if (newName.trim()) {
             col.name = newName.trim();
             renderCollections();
@@ -211,7 +310,7 @@
       });
 
       header.querySelector('.collection-delete-btn').addEventListener('click', () => {
-        if (confirm(`Delete collection "${col.name}"?`)) {
+        if (confirm(t('confirmDeleteCollection', col.name))) {
           space.collections = space.collections.filter(c => c.id !== col.id);
           renderCollections();
           saveAll();
@@ -226,7 +325,7 @@
       // Empty placeholder (dashed box)
       const emptyPlaceholder = document.createElement('div');
       emptyPlaceholder.className = 'tab-grid-empty' + (col.collapsed ? ' hidden' : '') + (tabs.length > 0 ? ' hidden' : '');
-      emptyPlaceholder.textContent = 'Drag tabs here';
+      emptyPlaceholder.textContent = t('dragTabsHere');
       emptyPlaceholder.dataset.spaceId = space.id;
       emptyPlaceholder.dataset.collectionId = col.id;
 
@@ -274,7 +373,7 @@
       $collectionsArea.appendChild(section);
     });
 
-    $tabCount.textContent = `Tabs (${totalTabs})`;
+    $tabCount.textContent = t('tabsCount', totalTabs);
   }
 
   function createTabCard(tab, spaceId, collectionId) {
@@ -285,13 +384,12 @@
     let domain = '';
     try { domain = new URL(tab.url).hostname.replace('www.', ''); } catch {}
 
-    const faviconUrl = tab.favicon || tab.favIconUrl || `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
-    const firstChar = (tab.title || 'U').charAt(0).toUpperCase();
+    const faviconUrl = tab.favicon || tab.favIconUrl || DEFAULT_FAVICON;
 
     card.innerHTML = `
       <img class="tab-favicon" src="${esc(faviconUrl)}" alt="">
       <span class="tab-title">${esc(tab.title)}</span>
-      <button class="tab-remove" title="More">···</button>
+      <button class="tab-remove" title="${t('more')}">···</button>
       <span class="tab-url" title="${esc(tab.url)}">${esc(domain || tab.url)}</span>
     `;
 
@@ -351,7 +449,6 @@
     function onMove(e2) {
       clone.style.top = (e2.clientY - offsetY) + 'px';
 
-      // Find which section we're hovering over
       for (let i = 0; i < allSections.length; i++) {
         if (allSections[i] === sectionEl) continue;
         const r = allSections[i].getBoundingClientRect();
@@ -359,13 +456,11 @@
         if (e2.clientY > r.top && e2.clientY < r.bottom) {
           const targetIdx = i;
           if (targetIdx !== currentIdx) {
-            // Move the placeholder element in DOM
             if (e2.clientY < midY) {
               $collectionsArea.insertBefore(sectionEl, allSections[i]);
             } else {
               $collectionsArea.insertBefore(sectionEl, allSections[i].nextSibling);
             }
-            // Refresh order
             allSections.length = 0;
             allSections.push(...$collectionsArea.querySelectorAll('.collection-section'));
             currentIdx = allSections.indexOf(sectionEl);
@@ -379,7 +474,6 @@
       clone.remove();
       sectionEl.classList.remove('collection-drag-placeholder');
 
-      // Compute new order from DOM
       const newOrder = Array.from($collectionsArea.querySelectorAll('.collection-section')).map(el => el.dataset.collectionId);
       const reordered = newOrder.map(id => space.collections.find(c => c.id === id)).filter(Boolean);
       reordered.forEach((c, i) => c.order = i);
@@ -405,7 +499,7 @@
           (t.url || '').toLowerCase().includes(searchQuery.toLowerCase()))
       : browserTabs;
 
-    $currentTabsCount.textContent = `Tabs (${browserTabs.length})`;
+    $currentTabsCount.textContent = t('tabsCount', browserTabs.length);
     $saveTabsBtn.style.display = browserTabs.length > 0 ? '' : 'none';
 
     list.forEach(tab => {
@@ -413,11 +507,11 @@
       li.className = 'current-tab-item';
       li.draggable = true;
 
-      const favicon = tab.favIconUrl || `https://www.google.com/s2/favicons?domain=${getDomain(tab.url)}&sz=32`;
+      const favicon = tab.favIconUrl || DEFAULT_FAVICON;
       li.innerHTML = `
         <img src="${esc(favicon)}" alt="">
-        <span>${esc(tab.title || tab.url || 'Untitled')}</span>
-        <button class="tab-close-btn" title="Close tab">&times;</button>
+        <span>${esc(tab.title || tab.url || t('untitled'))}</span>
+        <button class="tab-close-btn" title="${t('closeTab')}">&times;</button>
       `;
 
       // Fallback: use default favicon (no inline handler for CSP)
@@ -465,10 +559,9 @@
     const targetCol = space.collections.find(c => c.id === targetColId);
     if (!targetCol) return;
 
-    // Move from another collection
     if (dragSource && dragSource.type === 'card') {
       if (dragSource.collectionId === targetColId) return;
-      if (targetCol.tabs.some(t => t.url === data.url)) { showToast('Tab already in this collection'); return; }
+      if (targetCol.tabs.some(t => t.url === data.url)) { showToast(t('tabAlreadyExists')); return; }
 
       const srcSpace = spaces.find(s => s.id === dragSource.spaceId);
       if (srcSpace) {
@@ -479,16 +572,15 @@
       targetCol.tabs.push(makeTab(data, targetColId));
       renderCollections();
       saveAll();
-      showToast(`Moved to "${targetCol.name}"`);
+      showToast(t('movedTo', targetCol.name));
       return;
     }
 
-    // Copy from browser tabs
-    if (targetCol.tabs.some(t => t.url === data.url)) { showToast('Tab already in this collection'); return; }
+    if (targetCol.tabs.some(t => t.url === data.url)) { showToast(t('tabAlreadyExists')); return; }
     targetCol.tabs.push(makeTab(data, targetColId));
     renderCollections();
     saveAll();
-    showToast(`Added to "${targetCol.name}"`);
+    showToast(t('addedTo', targetCol.name));
   }
 
   function makeTab(data, collectionId) {
@@ -508,7 +600,7 @@
 
   function bindEvents() {
     $addSpaceBtn.addEventListener('click', () => {
-      showModal('New Space', '', async (name) => {
+      showModal(t('modalNewSpace'), '', async (name) => {
         if (!name.trim()) return;
         const sp = await StorageManager.createSpace(name.trim(), randomEmoji());
         spaces = await StorageManager.getSpaces();
@@ -523,7 +615,7 @@
         month: '2-digit', day: '2-digit', year: 'numeric',
         hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
       }).replace(',', ',');
-      showModal('New Collection', timestamp, async (name) => {
+      showModal(t('modalNewCollection'), timestamp, async (name) => {
         if (!name.trim()) return;
         await StorageManager.addCollection(activeSpaceId, name.trim());
         spaces = await StorageManager.getSpaces();
@@ -556,7 +648,7 @@
       if (!space) return;
 
       if (action === 'rename') {
-        showModal('Edit Space Name', space.name, async (newName) => {
+        showModal(t('modalEditSpaceName'), space.name, async (newName) => {
           if (newName.trim()) {
             space.name = newName.trim();
             await saveAll();
@@ -565,7 +657,7 @@
           }
         });
       } else if (action === 'delete') {
-        if (confirm(`Delete space "${space.name}"?`)) {
+        if (confirm(t('confirmDeleteSpace', space.name))) {
           spaces = spaces.filter(s => s.id !== spaceId);
           if (activeSpaceId === spaceId) activeSpaceId = spaces[0] ? spaces[0].id : null;
           saveAll().then(() => { renderSpaces(); renderCollections(); });
@@ -590,7 +682,7 @@
         a.download = `${space.name}.json`;
         a.click();
         URL.revokeObjectURL(a.href);
-        showToast('Exported successfully!');
+        showToast(t('exportedSuccess'));
       } else if (action === 'change-icon') {
         showEmojiPicker((emoji) => {
           space.icon = emoji;
@@ -622,7 +714,6 @@
         hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
       }).replace(',', ',');
 
-      // Create collection with timestamp name
       await StorageManager.addCollection(activeSpaceId, timestamp);
       spaces = await StorageManager.getSpaces();
 
@@ -630,7 +721,6 @@
       if (!space) return;
       const col = space.collections[space.collections.length - 1];
 
-      // Add all browser tabs to the collection
       for (const tab of browserTabs) {
         col.tabs.push({
           id: StorageManager.generateId(),
@@ -644,7 +734,6 @@
         });
       }
 
-      // Move new collection to the top
       space.collections.pop();
       space.collections.unshift(col);
       space.collections.forEach((c, i) => c.order = i);
@@ -652,7 +741,6 @@
       await saveAll();
       renderCollections();
 
-      // Close all tabs except the current TagTag page
       const currentTab = await new Promise(resolve => {
         chrome.tabs.getCurrent((t) => resolve(t));
       });
@@ -662,16 +750,15 @@
         try { await chrome.tabs.remove(idsToClose); } catch {}
       }
 
-      // Refresh browser tabs list
       await loadBrowserTabs();
       renderCurrentTabs();
-      showToast(`Saved ${tabsToClose.length} tabs!`);
+      showToast(t('savedTabs', tabsToClose.length));
     });
   }
 
   // ═══ Tab Context Menu ═══
 
-  let tabMenuTarget = null; // { spaceId, collectionId, tab }
+  let tabMenuTarget = null;
 
   function showTabContextMenu(e, spaceId, collectionId, tab) {
     tabMenuTarget = { spaceId, collectionId, tab };
@@ -697,21 +784,21 @@
     if (!sp) return;
     const col = sp.collections.find(c => c.id === target.collectionId);
     if (!col) return;
-    const t = col.tabs.find(x => x.id === target.tab.id);
-    if (!t) return;
+    const tt = col.tabs.find(x => x.id === target.tab.id);
+    if (!tt) return;
 
     if (action === 'tab-rename') {
-      showModal('Rename Tab', t.title, (newName) => {
+      showModal(t('modalRenameTab'), tt.title, (newName) => {
         if (newName.trim()) {
-          t.title = newName.trim();
+          tt.title = newName.trim();
           renderCollections();
           saveAll();
         }
       });
     } else if (action === 'tab-edit-url') {
-      showModal('Edit URL', t.url, (newUrl) => {
+      showModal(t('modalEditUrl'), tt.url, (newUrl) => {
         if (newUrl.trim()) {
-          t.url = newUrl.trim();
+          tt.url = newUrl.trim();
           renderCollections();
           saveAll();
         }
@@ -734,8 +821,9 @@
       const btn = document.createElement('button');
       btn.textContent = emoji;
       btn.addEventListener('click', () => {
+        const cb = emojiCallback;
         hideEmojiPicker();
-        if (emojiCallback) emojiCallback(emoji);
+        if (cb) cb(emoji);
       });
       $emojiPickerGrid.appendChild(btn);
     });
@@ -775,6 +863,13 @@
     currentSettings.openTabMode = document.getElementById('settingOpenTabMode').value;
     await StorageManager.saveSettings(currentSettings);
     applyTheme(currentSettings.theme);
+
+    // Apply language change
+    I18N.setLang(currentSettings.language);
+    applyLanguage();
+    renderSpaces();
+    renderCollections();
+    renderCurrentTabs();
   }
 
   function applyTheme(theme) {
@@ -784,7 +879,7 @@
       resolved = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
     }
     if (resolved === 'light') {
-      root.style.setProperty('--bg-primary', '#f0f0f4');
+      root.style.setProperty('--bg-primary', '#e4e4ec');
       root.style.setProperty('--bg-sidebar', '#e4e4ec');
       root.style.setProperty('--bg-card', '#ffffff');
       root.style.setProperty('--bg-hover', '#e8e8f0');
@@ -794,7 +889,7 @@
       root.style.setProperty('--text-muted', '#999999');
       root.style.setProperty('--border-color', '#d0d0dd');
     } else {
-      root.style.setProperty('--bg-primary', '#1a1a2e');
+      root.style.setProperty('--bg-primary', '#0f0f1a');
       root.style.setProperty('--bg-sidebar', '#0f0f1a');
       root.style.setProperty('--bg-card', '#2a2a3e');
       root.style.setProperty('--bg-hover', '#33334d');
@@ -802,7 +897,7 @@
       root.style.setProperty('--text-primary', '#e0e0e0');
       root.style.setProperty('--text-secondary', '#888888');
       root.style.setProperty('--text-muted', '#555555');
-      root.style.setProperty('--border-color', '#2a2a3e');
+      root.style.setProperty('--border-color', '#3a3a55');
     }
   }
 
@@ -812,7 +907,6 @@
     if (e.target === $settingsOverlay) closeSettings();
   });
 
-  // Bind change events on all settings controls
   ['settingLanguage', 'settingTheme', 'settingOpenTabMode'].forEach(id => {
     document.getElementById(id).addEventListener('change', onSettingChange);
   });
@@ -831,10 +925,6 @@
       const space = spaces.find(s => s.id === pendingImportSpaceId);
       if (!space) return;
 
-      // Detect format:
-      // Format A (TabTab export): { groups: [{ name, tabs: [{ title, url, favIconUrl }] }] }
-      // Format B: { collections: [{ name, tabs: [...] }] }
-      // Format C: [{ title, url }] — flat array
       let groups;
       if (data.groups && Array.isArray(data.groups)) {
         groups = data.groups;
@@ -843,26 +933,25 @@
       } else if (Array.isArray(data)) {
         groups = [{ name: file.name.replace('.json', ''), tabs: data }];
       } else {
-        showToast('Unsupported JSON format');
+        showToast(t('unsupportedFormat'));
         return;
       }
 
-      // Reverse to preserve original order from source
       groups.reverse();
 
       for (const g of groups) {
         const col = {
           id: StorageManager.generateId(),
           spaceId: space.id,
-          name: g.name || 'Untitled',
+          name: g.name || t('untitled'),
           icon: '',
           order: space.collections.length,
-          tabs: (g.tabs || []).map((t, i) => ({
+          tabs: (g.tabs || []).map((tt, i) => ({
             id: StorageManager.generateId(),
             collectionId: '',
-            title: t.title || t.url || '',
-            url: t.url || '',
-            favicon: t.favIconUrl || t.favicon || '',
+            title: tt.title || tt.url || '',
+            url: tt.url || '',
+            favicon: tt.favIconUrl || tt.favicon || '',
             order: i,
             pinned: false,
             createdAt: Date.now(),
@@ -871,18 +960,17 @@
           createdAt: Date.now(),
           updatedAt: Date.now(),
         };
-        col.tabs.forEach(t => t.collectionId = col.id);
+        col.tabs.forEach(tt => tt.collectionId = col.id);
         space.collections.push(col);
       }
 
       space.updatedAt = Date.now();
       await saveAll();
 
-      // Switch to the imported space so middle area shows the result
       switchSpace(space.id);
-      showToast(`Imported ${groups.length} collections!`);
+      showToast(t('importedCollections', groups.length));
     } catch (err) {
-      showToast('Failed to import JSON');
+      showToast(t('importFailed'));
       console.error(err);
     } finally {
       $jsonFileInput.value = '';
@@ -931,11 +1019,11 @@
   // ═══ Helpers ═══
 
   function showToast(msg) {
-    const t = document.createElement('div');
-    t.className = 'toast';
-    t.textContent = msg;
-    document.body.appendChild(t);
-    setTimeout(() => t.remove(), 2000);
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 2000);
   }
 
   async function openUrl(url) {

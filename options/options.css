@@ -6,7 +6,7 @@
 }
 
 :root {
-  --bg-primary: #1a1a2e;
+  --bg-primary: #0f0f1a;
   --bg-sidebar: #0f0f1a;
   --bg-card: #2a2a3e;
   --bg-hover: #33334d;
@@ -17,7 +17,7 @@
   --accent: #6c5ce7;
   --accent-hover: #7f70f0;
   --danger: #e74c3c;
-  --border-color: #2a2a3e;
+  --border-color: #3a3a55;
   --card-radius: 8px;
   --card-gap: 12px;
   --sidebar-width: 200px;
@@ -39,7 +39,7 @@ html, body {
 /* ═══ Layout ═══ */
 .app {
   display: grid;
-  grid-template-columns: var(--sidebar-width) 4px 1fr 4px var(--right-sidebar-width);
+  grid-template-columns: var(--sidebar-width) 1px 1fr 1px var(--right-sidebar-width);
   grid-template-rows: 1fr;
   height: 100vh;
   position: relative;
@@ -51,22 +51,22 @@ html, body {
 }
 
 .app.sidebar-right-hidden {
-  grid-template-columns: var(--sidebar-width) 4px 1fr 0px 0px;
+  grid-template-columns: var(--sidebar-width) 1px 1fr 0px 0px;
 }
 
 .app.sidebar-left-collapsed {
-  grid-template-columns: var(--sidebar-collapsed-width) 4px 1fr 4px var(--right-sidebar-width);
+  grid-template-columns: var(--sidebar-collapsed-width) 1px 1fr 1px var(--right-sidebar-width);
 }
 
 .app.sidebar-left-collapsed.sidebar-right-hidden {
-  grid-template-columns: var(--sidebar-collapsed-width) 4px 1fr 0px 0px;
+  grid-template-columns: var(--sidebar-collapsed-width) 1px 1fr 0px 0px;
 }
 
 /* ── Resize Handles ── */
 .resize-handle {
   grid-row: 1;
   cursor: col-resize;
-  background: transparent;
+  background: var(--border-color);
   position: relative;
   z-index: 10;
 }
@@ -161,6 +161,14 @@ html, body {
   font-size: 13px;
   transition: background 0.15s, color 0.15s;
   position: relative;
+}
+
+.space-item.dragging {
+  opacity: 0.4;
+}
+
+.space-item.drag-over {
+  border-top: 2px solid var(--accent);
 }
 
 .space-item:hover {
