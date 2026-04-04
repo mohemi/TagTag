@@ -76,6 +76,7 @@ const I18N = {
       unsupportedFormat: 'Unsupported JSON format',
       importFailed: 'Failed to import JSON',
       importing: 'Importing...',
+      exporting: 'Exporting...',
       importedCollections: (n) => `Imported ${n} collections!`,
 
       // Confirm
@@ -187,6 +188,7 @@ const I18N = {
       unsupportedFormat: '不支持的 JSON 格式',
       importFailed: '导入 JSON 失败',
       importing: '导入中...',
+      exporting: '导出中...',
       importedCollections: (n) => `已导入 ${n} 个标签组！`,
 
       // Confirm

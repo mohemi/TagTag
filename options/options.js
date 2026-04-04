@@ -1043,6 +1043,15 @@
         const sp = await StorageManager.createSpace(spaceName, randomEmoji());
 
         if (json.groups && Array.isArray(json.groups)) {
+          let totalTabs = 0;
+          for (const g of json.groups) totalTabs += (g.tabs || []).length;
+          let done = 0;
+
+          $progressTitle.textContent = t('importing');
+          $progressBarFill.style.width = '0%';
+          $progressText.textContent = '0%';
+          $progressOverlay.hidden = false;
+
           for (const group of json.groups) {
             const col = await StorageManager.addCollection(sp.id, group.name || t('untitled'));
             if (group.tabs && Array.isArray(group.tabs)) {
@@ -1052,15 +1061,23 @@
                   url: tab.url || '',
                   favicon: tab.favIconUrl || tab.favicon || '',
                 });
+                done++;
+                const pct = totalTabs ? Math.round((done / totalTabs) * 100) : 100;
+                $progressBarFill.style.width = pct + '%';
+                $progressText.textContent = `${done} / ${totalTabs} (${pct}%)`;
               }
             }
+            await new Promise(r => setTimeout(r, 0));
           }
+
+          $progressOverlay.hidden = true;
         }
 
         spaces = await StorageManager.getSpaces();
         switchSpace(sp.id);
         showToast(t('importedCollections', json.groups ? json.groups.length : 0));
       } catch (err) {
+        $progressOverlay.hidden = true;
         console.error(err);
         showToast(t('importFailed'));
       }
@@ -1285,7 +1302,7 @@
     });
 
     // Context menu actions
-    $contextMenu.addEventListener('click', (e) => {
+    $contextMenu.addEventListener('click', async (e) => {
       const action = e.target.dataset.action;
       const spaceId = $contextMenu.dataset.spaceId;
       hideContextMenu();
@@ -1313,22 +1330,37 @@
         pendingImportSpaceId = spaceId;
         $jsonFileInput.click();
       } else if (action === 'export-json') {
-        const exportData = {
-          groups: space.collections.map(col => ({
+        $progressTitle.textContent = t('exporting');
+        $progressBarFill.style.width = '0%';
+        $progressText.textContent = '0%';
+        $progressOverlay.hidden = false;
+
+        const totalCols = space.collections.length;
+        const groups = [];
+        for (let i = 0; i < totalCols; i++) {
+          const col = space.collections[i];
+          groups.push({
             name: col.name,
-            tabs: col.tabs.map(t => ({
-              title: t.title,
-              url: t.url,
-              favIconUrl: t.favicon,
+            tabs: col.tabs.map(tt => ({
+              title: tt.title,
+              url: tt.url,
+              favIconUrl: tt.favicon,
             })),
-          })),
-        };
+          });
+          const pct = Math.round(((i + 1) / totalCols) * 100);
+          $progressBarFill.style.width = pct + '%';
+          $progressText.textContent = `${i + 1} / ${totalCols} (${pct}%)`;
+          await new Promise(r => setTimeout(r, 0));
+        }
+
+        const exportData = { groups };
         const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         a.download = `${space.name}.json`;
         a.click();
         URL.revokeObjectURL(a.href);
+        $progressOverlay.hidden = true;
         showToast(t('exportedSuccess'));
       } else if (action === 'change-icon') {
         showEmojiPicker((emoji) => {
@@ -1633,6 +1665,15 @@
 
       groups.reverse();
 
+      let totalTabs = 0;
+      for (const g of groups) totalTabs += (g.tabs || []).length;
+      let done = 0;
+
+      $progressTitle.textContent = t('importing');
+      $progressBarFill.style.width = '0%';
+      $progressText.textContent = '0%';
+      $progressOverlay.hidden = false;
+
       for (const g of groups) {
         const col = {
           id: StorageManager.generateId(),
@@ -1656,14 +1697,21 @@
         };
         col.tabs.forEach(tt => tt.collectionId = col.id);
         space.collections.push(col);
+        done += (g.tabs || []).length;
+        const pct = totalTabs ? Math.round((done / totalTabs) * 100) : 100;
+        $progressBarFill.style.width = pct + '%';
+        $progressText.textContent = `${done} / ${totalTabs} (${pct}%)`;
+        await new Promise(r => setTimeout(r, 0));
       }
 
       space.updatedAt = Date.now();
       await saveAll();
 
+      $progressOverlay.hidden = true;
       switchSpace(space.id);
       showToast(t('importedCollections', groups.length));
     } catch (err) {
+      $progressOverlay.hidden = true;
       showToast(t('importFailed'));
       console.error(err);
     } finally {
