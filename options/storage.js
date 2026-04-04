@@ -70,7 +70,7 @@ class StorageManager {
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
-    space.collections.push(collection);
+    space.collections.unshift(collection);
     space.updatedAt = Date.now();
     await StorageManager.saveSpaces(spaces);
     return collection;

@@ -230,7 +230,12 @@
 
   function renderCollections() {
     const space = spaces.find(s => s.id === activeSpaceId);
-    if (!space) return;
+    if (!space) {
+      $currentSpaceName.textContent = '';
+      $collectionsArea.innerHTML = '';
+      $tabCount.textContent = t('tabsCount', 0);
+      return;
+    }
 
     $currentSpaceName.textContent = space.name;
     $collectionsArea.innerHTML = '';
