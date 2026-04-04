@@ -21,6 +21,12 @@
       <div class="spaces-label">
         <span>Spaces</span>
         <button class="btn-icon spaces-add-btn" id="addSpaceBtn" title="New Space">+</button>
+        <!-- Space Add Menu -->
+        <div class="context-menu" id="spaceAddMenu" hidden>
+          <button class="context-menu-item" data-action="create-space">Create Space</button>
+          <button class="context-menu-item" data-action="import-space">Import Space</button>
+          <button class="context-menu-item" data-action="import-bookmarks">Import Bookmarks</button>
+        </div>
       </div>
       <ul class="spaces-list" id="spacesList"></ul>
       <div class="sidebar-left-footer">
@@ -195,6 +201,21 @@
 
   <!-- Hidden file input for JSON import -->
   <input type="file" id="jsonFileInput" accept=".json" style="display:none" />
+  <!-- Hidden file input for Space JSON import -->
+  <input type="file" id="spaceJsonFileInput" accept=".json" style="display:none" />
+  <!-- Hidden file input for Bookmark HTML import -->
+  <input type="file" id="bookmarkFileInput" accept=".html,.htm" style="display:none" />
+
+  <!-- Import Progress Overlay -->
+  <div class="progress-overlay" id="progressOverlay" hidden>
+    <div class="progress-panel">
+      <h3 id="progressTitle">Importing...</h3>
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill" id="progressBarFill"></div>
+      </div>
+      <p class="progress-text" id="progressText">0%</p>
+    </div>
+  </div>
 
   <script src="i18n.js"></script>
   <script src="storage.js"></script>

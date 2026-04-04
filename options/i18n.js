@@ -10,6 +10,9 @@ const I18N = {
       // Sidebar
       spaces: 'Spaces',
       newSpace: 'New Space',
+      createSpace: 'Create Space',
+      importSpace: 'Import Space',
+      importBookmarks: 'Import Bookmarks',
       settings: 'Settings',
       toggleSidebar: 'Toggle sidebar',
 
@@ -72,6 +75,7 @@ const I18N = {
       savedTabs: (n) => `Saved ${n} tabs!`,
       unsupportedFormat: 'Unsupported JSON format',
       importFailed: 'Failed to import JSON',
+      importing: 'Importing...',
       importedCollections: (n) => `Imported ${n} collections!`,
 
       // Confirm
@@ -117,6 +121,9 @@ const I18N = {
       // Sidebar
       spaces: '命名空间',
       newSpace: '新建空间',
+      createSpace: '创建空间',
+      importSpace: '导入空间',
+      importBookmarks: '导入书签',
       settings: '设置',
       toggleSidebar: '切换侧栏',
 
@@ -179,6 +186,7 @@ const I18N = {
       savedTabs: (n) => `已保存 ${n} 个标签页！`,
       unsupportedFormat: '不支持的 JSON 格式',
       importFailed: '导入 JSON 失败',
+      importing: '导入中...',
       importedCollections: (n) => `已导入 ${n} 个标签组！`,
 
       // Confirm

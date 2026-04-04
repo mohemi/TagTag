@@ -136,11 +136,18 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  position: relative;
 }
 
 .spaces-add-btn {
   font-size: 15px;
   padding: 0 2px;
+}
+
+#spaceAddMenu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 170px;
 }
 
 .spaces-list {
@@ -1246,6 +1253,57 @@ html, body {
 
 .about-body a:hover {
   text-decoration: underline;
+}
+
+/* ═══ Progress Overlay ═══ */
+.progress-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.progress-overlay[hidden] {
+  display: none;
+}
+
+.progress-panel {
+  background: var(--bg-card);
+  border-radius: 12px;
+  padding: 24px 32px;
+  min-width: 320px;
+  text-align: center;
+}
+
+.progress-panel h3 {
+  margin-bottom: 16px;
+  font-size: 15px;
+  color: var(--text-primary);
+}
+
+.progress-bar-track {
+  width: 100%;
+  height: 8px;
+  background: var(--bg-input);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  border-radius: 4px;
+  transition: width 0.2s;
+}
+
+.progress-text {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--text-secondary);
 }
 
 /* ═══ Settings Overlay ═══ */

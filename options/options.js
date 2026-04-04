@@ -22,6 +22,13 @@
   const $searchInput = document.getElementById('searchInput');
   const $tabCount = document.getElementById('tabCount');
   const $addSpaceBtn = document.getElementById('addSpaceBtn');
+  const $spaceAddMenu = document.getElementById('spaceAddMenu');
+  const $spaceJsonFileInput = document.getElementById('spaceJsonFileInput');
+  const $bookmarkFileInput = document.getElementById('bookmarkFileInput');
+  const $progressOverlay = document.getElementById('progressOverlay');
+  const $progressTitle = document.getElementById('progressTitle');
+  const $progressBarFill = document.getElementById('progressBarFill');
+  const $progressText = document.getElementById('progressText');
   const $addCollectionBtn = document.getElementById('addCollectionBtn');
   const $selectTabsBtn = document.getElementById('selectTabsBtn');
   const $selectActions = document.getElementById('selectActions');
@@ -986,13 +993,190 @@
   // ═══ Event Binding ═══
 
   function bindEvents() {
-    $addSpaceBtn.addEventListener('click', () => {
-      showModal(t('modalNewSpace'), '', async (name) => {
-        if (!name.trim()) return;
-        const sp = await StorageManager.createSpace(name.trim(), randomEmoji());
+    // ── Space Add Menu ──
+    $addSpaceBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!$spaceAddMenu.hidden) {
+        $spaceAddMenu.hidden = true;
+        return;
+      }
+      // Update menu text
+      $spaceAddMenu.querySelector('[data-action="create-space"]').textContent = t('createSpace');
+      $spaceAddMenu.querySelector('[data-action="import-space"]').textContent = t('importSpace');
+      $spaceAddMenu.querySelector('[data-action="import-bookmarks"]').textContent = t('importBookmarks');
+      const btnRect = e.target.getBoundingClientRect();
+      $spaceAddMenu.style.left = btnRect.right + 4 + 'px';
+      $spaceAddMenu.style.top = btnRect.top + 'px';
+      $spaceAddMenu.hidden = false;
+    });
+
+    $spaceAddMenu.addEventListener('click', (e) => {
+      const action = e.target.dataset.action;
+      $spaceAddMenu.hidden = true;
+      if (!action) return;
+
+      if (action === 'create-space') {
+        showModal(t('modalNewSpace'), '', async (name) => {
+          if (!name.trim()) return;
+          const sp = await StorageManager.createSpace(name.trim(), randomEmoji());
+          spaces = await StorageManager.getSpaces();
+          switchSpace(sp.id);
+        });
+      } else if (action === 'import-space') {
+        $spaceJsonFileInput.click();
+      } else if (action === 'import-bookmarks') {
+        $bookmarkFileInput.click();
+      }
+    });
+
+    document.addEventListener('click', () => { $spaceAddMenu.hidden = true; });
+
+    // Import Space JSON
+    $spaceJsonFileInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      $spaceJsonFileInput.value = '';
+      try {
+        const text = await file.text();
+        const json = JSON.parse(text);
+        const spaceName = file.name.replace(/\.json$/i, '');
+        const sp = await StorageManager.createSpace(spaceName, randomEmoji());
+
+        if (json.groups && Array.isArray(json.groups)) {
+          for (const group of json.groups) {
+            const col = await StorageManager.addCollection(sp.id, group.name || t('untitled'));
+            if (group.tabs && Array.isArray(group.tabs)) {
+              for (const tab of group.tabs) {
+                await StorageManager.addTab(sp.id, col.id, {
+                  title: tab.title || '',
+                  url: tab.url || '',
+                  favicon: tab.favIconUrl || tab.favicon || '',
+                });
+              }
+            }
+          }
+        }
+
         spaces = await StorageManager.getSpaces();
         switchSpace(sp.id);
-      });
+        showToast(t('importedCollections', json.groups ? json.groups.length : 0));
+      } catch (err) {
+        console.error(err);
+        showToast(t('importFailed'));
+      }
+    });
+
+    // Import Chrome Bookmarks HTML
+    $bookmarkFileInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      $bookmarkFileInput.value = '';
+      try {
+        const text = await file.text();
+        const spaceName = file.name.replace(/\.(html?|htm)$/i, '');
+        const sp = await StorageManager.createSpace(spaceName, randomEmoji());
+
+        // Parse bookmark HTML
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(text, 'text/html');
+        const dlList = doc.querySelectorAll('DL > DT');
+
+        function parseDT(dtEl, spaceId) {
+          const h3 = dtEl.querySelector(':scope > H3');
+          const dl = dtEl.querySelector(':scope > DL');
+          if (h3 && dl) {
+            // It's a folder
+            const folderName = h3.textContent.trim() || t('untitled');
+            const links = dl.querySelectorAll(':scope > DT > A');
+            const subFolders = dl.querySelectorAll(':scope > DT');
+
+            // Collect direct links
+            const tabs = [];
+            for (const a of links) {
+              tabs.push({
+                title: a.textContent.trim(),
+                url: a.getAttribute('HREF') || '',
+                favicon: a.getAttribute('ICON') || '',
+              });
+            }
+
+            if (tabs.length > 0) {
+              return { name: folderName, tabs };
+            }
+
+            // Process sub-folders recursively
+            const collections = [];
+            for (const subDt of subFolders) {
+              const result = parseDT(subDt, spaceId);
+              if (result) collections.push(result);
+            }
+            return collections.length > 0 ? collections : null;
+          }
+          return null;
+        }
+
+        const collections = [];
+        for (const dt of dlList) {
+          const result = parseDT(dt, sp.id);
+          if (result) {
+            if (Array.isArray(result)) {
+              collections.push(...result);
+            } else {
+              collections.push(result);
+            }
+          }
+        }
+
+        // Flatten nested arrays
+        function flatCollections(arr) {
+          const flat = [];
+          for (const item of arr) {
+            if (Array.isArray(item)) {
+              flat.push(...flatCollections(item));
+            } else if (item && item.name) {
+              flat.push(item);
+            }
+          }
+          return flat;
+        }
+
+        const flatCols = flatCollections(collections);
+
+        // Show progress overlay
+        $progressTitle.textContent = t('importing');
+        $progressBarFill.style.width = '0%';
+        $progressText.textContent = '0%';
+        $progressOverlay.hidden = false;
+
+        // Count total tabs for progress
+        let totalTabs = 0;
+        for (const col of flatCols) totalTabs += col.tabs.filter(tab => tab.url).length;
+        let done = 0;
+
+        for (const col of flatCols) {
+          const newCol = await StorageManager.addCollection(sp.id, col.name);
+          for (const tab of col.tabs) {
+            if (tab.url) {
+              await StorageManager.addTab(sp.id, newCol.id, tab);
+              done++;
+              const pct = Math.round((done / totalTabs) * 100);
+              $progressBarFill.style.width = pct + '%';
+              $progressText.textContent = `${done} / ${totalTabs} (${pct}%)`;
+            }
+          }
+          // Yield to UI thread periodically
+          await new Promise(r => setTimeout(r, 0));
+        }
+
+        $progressOverlay.hidden = true;
+        spaces = await StorageManager.getSpaces();
+        switchSpace(sp.id);
+        showToast(t('importedCollections', flatCols.length));
+      } catch (err) {
+        $progressOverlay.hidden = true;
+        console.error(err);
+        showToast(t('importFailed'));
+      }
     });
 
     $addCollectionBtn.addEventListener('click', () => {
