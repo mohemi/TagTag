@@ -23,9 +23,18 @@
         <button class="btn-icon spaces-add-btn" id="addSpaceBtn" title="New Space">+</button>
         <!-- Space Add Menu -->
         <div class="context-menu" id="spaceAddMenu" hidden>
-          <button class="context-menu-item" data-action="create-space">Create Space</button>
-          <button class="context-menu-item" data-action="import-space">Import Space</button>
-          <button class="context-menu-item" data-action="import-bookmarks">Import Bookmarks</button>
+          <button class="context-menu-item" data-action="create-space">
+            <span class="context-menu-icon"><svg viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+            Create Space
+          </button>
+          <button class="context-menu-item" data-action="import-space">
+            <span class="context-menu-icon"><svg viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3M3 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            Import Space
+          </button>
+          <button class="context-menu-item" data-action="import-bookmarks">
+            <span class="context-menu-icon"><svg viewBox="0 0 16 16" fill="none"><path d="M4 2h8v12l-4-3-4 3V2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></span>
+            Import Bookmarks
+          </button>
         </div>
       </div>
       <ul class="spaces-list" id="spacesList"></ul>
@@ -38,8 +47,14 @@
         </button>
         <!-- Preference popup menu -->
         <div class="pref-menu" id="prefMenu" hidden>
-          <button class="pref-menu-item" data-action="settings">Settings</button>
-          <button class="pref-menu-item" data-action="about">About Me</button>
+          <button class="pref-menu-item" data-action="settings">
+            <span class="context-menu-icon"><svg viewBox="0 0 16 16" fill="none"><path d="M6.86 1.33h2.28l.35 1.76c.32.13.62.3.9.5l1.7-.57 1.14 1.96-1.35 1.2c.03.18.05.36.05.55s-.02.37-.05.55l1.35 1.2-1.14 1.96-1.7-.57c-.28.2-.58.37-.9.5l-.35 1.76H6.86l-.35-1.76c-.32-.13-.62-.3-.9-.5l-1.7.57-1.14-1.96 1.35-1.2A3.8 3.8 0 014.07 6.7c0-.19.02-.37.05-.55l-1.35-1.2 1.14-1.96 1.7.57c.28-.2.58-.37.9-.5l.35-1.76zM8 5.33a1.4 1.4 0 100 2.8 1.4 1.4 0 000-2.8z" stroke="currentColor" stroke-width="1.2" fill="none" transform="translate(0,1.3)"/></svg></span>
+            Settings
+          </button>
+          <button class="pref-menu-item" data-action="about">
+            <span class="context-menu-icon"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M8 7v4M8 5v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+            About Me
+          </button>
         </div>
       </div>
     </aside>
@@ -126,18 +141,42 @@
 
   <!-- Space Context Menu -->
   <div class="context-menu" id="contextMenu" hidden>
-    <button class="context-menu-item" data-action="import-json">Import JSON</button>
-    <button class="context-menu-item" data-action="export-json">Export JSON</button>
-    <button class="context-menu-item" data-action="change-icon">Change Icon</button>
-    <button class="context-menu-item" data-action="rename">Edit Name</button>
-    <button class="context-menu-item context-menu-item--danger" data-action="delete">Delete</button>
+    <button class="context-menu-item" data-action="import-json">
+      <span class="context-menu-icon"><svg viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3M3 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      Import JSON
+    </button>
+    <button class="context-menu-item" data-action="export-json">
+      <span class="context-menu-icon"><svg viewBox="0 0 16 16" fill="none"><path d="M8 10V2M5 5l3-3 3 3M3 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      Export JSON
+    </button>
+    <button class="context-menu-item" data-action="change-icon">
+      <span class="context-menu-icon"><svg viewBox="0 0 16 16" fill="none"><circle cx="5" cy="5" r="2" stroke="currentColor" stroke-width="1.3"/><circle cx="11" cy="5" r="2" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="11" r="2" stroke="currentColor" stroke-width="1.3"/></svg></span>
+      Change Icon
+    </button>
+    <button class="context-menu-item" data-action="rename">
+      <span class="context-menu-icon"><svg viewBox="0 0 16 16" fill="none"><path d="M11.5 2.5l2 2L5 13H3v-2l8.5-8.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></span>
+      Edit Name
+    </button>
+    <button class="context-menu-item context-menu-item--danger" data-action="delete">
+      <span class="context-menu-icon"><svg viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V3h4v1M5 4v8.5a1 1 0 001 1h4a1 1 0 001-1V4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      Delete
+    </button>
   </div>
 
   <!-- Tab Card Context Menu -->
   <div class="context-menu" id="tabContextMenu" hidden>
-    <button class="context-menu-item" data-action="tab-rename">Rename</button>
-    <button class="context-menu-item" data-action="tab-edit-url">Edit URL</button>
-    <button class="context-menu-item context-menu-item--danger" data-action="tab-delete">Delete</button>
+    <button class="context-menu-item" data-action="tab-rename">
+      <span class="context-menu-icon"><svg viewBox="0 0 16 16" fill="none"><path d="M11.5 2.5l2 2L5 13H3v-2l8.5-8.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></span>
+      Rename
+    </button>
+    <button class="context-menu-item" data-action="tab-edit-url">
+      <span class="context-menu-icon"><svg viewBox="0 0 16 16" fill="none"><path d="M6.5 9.5l3-3M7 10l-1.8 1.8a1.5 1.5 0 01-2.1-2.1L5 7.8M9 6l1.8-1.8a1.5 1.5 0 012.1 2.1L11 8.2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      Edit URL
+    </button>
+    <button class="context-menu-item context-menu-item--danger" data-action="tab-delete">
+      <span class="context-menu-icon"><svg viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V3h4v1M5 4v8.5a1 1 0 001 1h4a1 1 0 001-1V4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      Delete
+    </button>
   </div>
 
   <!-- Collection Drop Menu (Space picker / Copy-Move) -->

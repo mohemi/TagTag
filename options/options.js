@@ -96,6 +96,19 @@
   const DEFAULT_FAVICON = chrome.runtime.getURL('assets/icons/icon128.png');
   const SELF_URL = chrome.runtime.getURL('options/options.html');
 
+  // ── Menu Icon SVGs ──
+  const MENU_ICONS = {
+    copy: '<svg viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M11 3H4.5A1.5 1.5 0 003 4.5V11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+    move: '<svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10M10 5l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    create: '<svg viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+    import: '<svg viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3M3 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    bookmark: '<svg viewBox="0 0 16 16" fill="none"><path d="M4 2h8v12l-4-3-4 3V2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>',
+  };
+
+  function menuIcon(name) {
+    return `<span class="context-menu-icon">${MENU_ICONS[name] || ''}</span>`;
+  }
+
   async function loadBrowserTabs() {
     try {
       const all = await chrome.tabs.query({});
@@ -120,9 +133,9 @@
     $sidebarLeftToggle.title = t('toggleSidebar');
     document.querySelector('.settings-btn-text').textContent = t('preferences');
     $settingsBtn.title = t('preferences');
-    // Pref menu items
-    $prefMenu.querySelector('[data-action="settings"]').textContent = t('settingsTitle');
-    $prefMenu.querySelector('[data-action="about"]').textContent = t('aboutMe');
+    // Pref menu items (preserve icons)
+    setMenuItemText($prefMenu.querySelector('[data-action="settings"]'), t('settingsTitle'));
+    setMenuItemText($prefMenu.querySelector('[data-action="about"]'), t('aboutMe'));
 
     // Top bar
     $searchInput.placeholder = t('searchTabs');
@@ -139,17 +152,22 @@
     $modalCancel.textContent = t('cancel');
     $modalConfirm.textContent = t('confirm');
 
-    // Space context menu
-    $contextMenu.querySelector('[data-action="import-json"]').textContent = t('importJson');
-    $contextMenu.querySelector('[data-action="export-json"]').textContent = t('exportJson');
-    $contextMenu.querySelector('[data-action="change-icon"]').textContent = t('changeIcon');
-    $contextMenu.querySelector('[data-action="rename"]').textContent = t('editName');
-    $contextMenu.querySelector('[data-action="delete"]').textContent = t('delete');
+    // Space context menu (preserve icons)
+    setMenuItemText($contextMenu.querySelector('[data-action="import-json"]'), t('importJson'));
+    setMenuItemText($contextMenu.querySelector('[data-action="export-json"]'), t('exportJson'));
+    setMenuItemText($contextMenu.querySelector('[data-action="change-icon"]'), t('changeIcon'));
+    setMenuItemText($contextMenu.querySelector('[data-action="rename"]'), t('editName'));
+    setMenuItemText($contextMenu.querySelector('[data-action="delete"]'), t('delete'));
 
-    // Tab context menu
-    $tabContextMenu.querySelector('[data-action="tab-rename"]').textContent = t('rename');
-    $tabContextMenu.querySelector('[data-action="tab-edit-url"]').textContent = t('editUrl');
-    $tabContextMenu.querySelector('[data-action="tab-delete"]').textContent = t('delete');
+    // Tab context menu (preserve icons)
+    setMenuItemText($tabContextMenu.querySelector('[data-action="tab-rename"]'), t('rename'));
+    setMenuItemText($tabContextMenu.querySelector('[data-action="tab-edit-url"]'), t('editUrl'));
+    setMenuItemText($tabContextMenu.querySelector('[data-action="tab-delete"]'), t('delete'));
+
+    // Space add menu (preserve icons)
+    setMenuItemText($spaceAddMenu.querySelector('[data-action="create-space"]'), t('createSpace'));
+    setMenuItemText($spaceAddMenu.querySelector('[data-action="import-space"]'), t('importSpace'));
+    setMenuItemText($spaceAddMenu.querySelector('[data-action="import-bookmarks"]'), t('importBookmarks'));
 
     // Emoji picker
     document.querySelector('.emoji-picker-header h3').textContent = t('chooseIcon');
@@ -170,6 +188,21 @@
     const modeSelect = document.getElementById('settingOpenTabMode');
     modeSelect.options[0].textContent = t('modeRedirect');
     modeSelect.options[1].textContent = t('modeNewTab');
+  }
+
+  // Helper: update menu item text while preserving icon span
+  function setMenuItemText(el, text) {
+    if (!el) return;
+    const icon = el.querySelector('.context-menu-icon');
+    if (icon) {
+      // Remove all text nodes, keep icon
+      Array.from(el.childNodes).forEach(node => {
+        if (node.nodeType === 3) node.remove();
+      });
+      el.appendChild(document.createTextNode(text));
+    } else {
+      el.textContent = text;
+    }
   }
 
   // ═══ Render: Spaces Sidebar ═══
@@ -585,7 +618,7 @@
 
     const copyBtn = document.createElement('button');
     copyBtn.className = 'context-menu-item';
-    copyBtn.textContent = t('copyCollection');
+    copyBtn.innerHTML = menuIcon('copy') + t('copyCollection');
     copyBtn.addEventListener('click', () => {
       $collDropMenu.hidden = true;
       execSelectCopyMove('copy', toSpaceId);
@@ -593,7 +626,7 @@
 
     const moveBtn = document.createElement('button');
     moveBtn.className = 'context-menu-item';
-    moveBtn.textContent = t('moveCollection');
+    moveBtn.innerHTML = menuIcon('move') + t('moveCollection');
     moveBtn.addEventListener('click', () => {
       $collDropMenu.hidden = true;
       execSelectCopyMove('move', toSpaceId);
@@ -767,7 +800,7 @@
 
     const copyBtn = document.createElement('button');
     copyBtn.className = 'context-menu-item';
-    copyBtn.textContent = t('copyCollection');
+    copyBtn.innerHTML = menuIcon('copy') + t('copyCollection');
     copyBtn.addEventListener('click', () => {
       $collDropMenu.hidden = true;
       execCollectionCopyMove('copy', colId, fromSpaceId, toSpaceId);
@@ -775,7 +808,7 @@
 
     const moveBtn = document.createElement('button');
     moveBtn.className = 'context-menu-item';
-    moveBtn.textContent = t('moveCollection');
+    moveBtn.innerHTML = menuIcon('move') + t('moveCollection');
     moveBtn.addEventListener('click', () => {
       $collDropMenu.hidden = true;
       execCollectionCopyMove('move', colId, fromSpaceId, toSpaceId);
@@ -930,7 +963,7 @@
 
     const copyBtn = document.createElement('button');
     copyBtn.className = 'context-menu-item';
-    copyBtn.textContent = t('copyCollection');
+    copyBtn.innerHTML = menuIcon('copy') + t('copyCollection');
     copyBtn.addEventListener('click', async () => {
       $collDropMenu.hidden = true;
       // Already added, just save
@@ -940,7 +973,7 @@
 
     const moveBtn = document.createElement('button');
     moveBtn.className = 'context-menu-item';
-    moveBtn.textContent = t('moveCollection');
+    moveBtn.innerHTML = menuIcon('move') + t('moveCollection');
     moveBtn.addEventListener('click', async () => {
       $collDropMenu.hidden = true;
       // Already added, save and close browser tab
@@ -1000,10 +1033,10 @@
         $spaceAddMenu.hidden = true;
         return;
       }
-      // Update menu text
-      $spaceAddMenu.querySelector('[data-action="create-space"]').textContent = t('createSpace');
-      $spaceAddMenu.querySelector('[data-action="import-space"]').textContent = t('importSpace');
-      $spaceAddMenu.querySelector('[data-action="import-bookmarks"]').textContent = t('importBookmarks');
+      // Update menu text (preserve icons)
+      setMenuItemText($spaceAddMenu.querySelector('[data-action="create-space"]'), t('createSpace'));
+      setMenuItemText($spaceAddMenu.querySelector('[data-action="import-space"]'), t('importSpace'));
+      setMenuItemText($spaceAddMenu.querySelector('[data-action="import-bookmarks"]'), t('importBookmarks'));
       const btnRect = e.target.getBoundingClientRect();
       $spaceAddMenu.style.left = btnRect.right + 4 + 'px';
       $spaceAddMenu.style.top = btnRect.top + 'px';
