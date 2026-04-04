@@ -11,6 +11,8 @@
   let browserTabs = [];
   let searchQuery = '';
   let dragSource = null;
+  let selectMode = false;
+  let selectedTabs = new Map(); // key: "spaceId:colId:tabId", value: { spaceId, colId, tabId }
 
   // ── DOM refs ──
   const $spacesList = document.getElementById('spacesList');
@@ -21,6 +23,11 @@
   const $tabCount = document.getElementById('tabCount');
   const $addSpaceBtn = document.getElementById('addSpaceBtn');
   const $addCollectionBtn = document.getElementById('addCollectionBtn');
+  const $selectTabsBtn = document.getElementById('selectTabsBtn');
+  const $selectActions = document.getElementById('selectActions');
+  const $selectCreateGroupBtn = document.getElementById('selectCreateGroupBtn');
+  const $selectMoveBtn = document.getElementById('selectMoveBtn');
+  const $selectDeleteBtn = document.getElementById('selectDeleteBtn');
   const $modalOverlay = document.getElementById('modalOverlay');
   const $modalTitle = document.getElementById('modalTitle');
   const $modalInput = document.getElementById('modalInput');
@@ -113,6 +120,8 @@
     // Top bar
     $searchInput.placeholder = t('searchTabs');
     $addCollectionBtn.textContent = t('addCollection');
+    $selectTabsBtn.textContent = selectMode ? t('cancelSelect') : t('selectTabs');
+    updateSelectActions();
 
     // Right sidebar
     $saveTabsBtn.title = t('saveAllTabs');
@@ -264,7 +273,10 @@
         <span class="collection-toggle ${col.collapsed ? 'collapsed' : ''}">▼</span>
         <span class="collection-name">${esc(col.name)}</span>
         <div class="collection-actions">
-          <button class="btn-icon collection-move-btn" title="${t('moveCollection')}" style="font-size:12px">⇄</button>
+          ${selectMode
+            ? `<button class="btn-icon collection-selectall-btn" title="${t('selectAll')}" style="font-size:11px">☐</button>`
+            : `<button class="btn-icon collection-move-btn" title="${t('moveCollection')}" style="font-size:12px">⇄</button>`
+          }
           <button class="btn-icon collection-rename-btn" title="${t('rename')}" style="font-size:13px">✎</button>
           <button class="btn-icon collection-delete-btn" title="${t('delete')}" style="font-size:14px">&times;</button>
         </div>
@@ -312,11 +324,33 @@
         });
       });
 
-      // Move/Copy to another space
-      header.querySelector('.collection-move-btn').addEventListener('click', (e) => {
-        e.stopPropagation();
-        showSpacePickerMenu(e.target, col.id, space.id);
-      });
+      // Move/Copy to another space OR Select All
+      if (selectMode) {
+        header.querySelector('.collection-selectall-btn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          const colTabs = col.tabs || [];
+          const allSelected = colTabs.every(tab => selectedTabs.has(`${space.id}:${col.id}:${tab.id}`));
+          colTabs.forEach(tab => {
+            const key = `${space.id}:${col.id}:${tab.id}`;
+            if (allSelected) {
+              selectedTabs.delete(key);
+            } else {
+              selectedTabs.set(key, { spaceId: space.id, colId: col.id, tabId: tab.id });
+            }
+          });
+          renderCollections();
+          updateSelectActions();
+        });
+      } else {
+        header.querySelector('.collection-move-btn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (!$collDropMenu.hidden) {
+            $collDropMenu.hidden = true;
+            return;
+          }
+          showSpacePickerMenu(e.target, col.id, space.id);
+        });
+      }
 
       header.querySelector('.collection-rename-btn').addEventListener('click', () => {
         showModal(t('modalRenameCollection'), col.name, (newName) => {
@@ -329,11 +363,10 @@
       });
 
       header.querySelector('.collection-delete-btn').addEventListener('click', () => {
-        if (confirm(t('confirmDeleteCollection', col.name))) {
-          space.collections = space.collections.filter(c => c.id !== col.id);
-          renderCollections();
-          saveAll();
-        }
+        if (col.tabs.length > 0 && !confirm(t('confirmDeleteCollection', col.name))) return;
+        space.collections = space.collections.filter(c => c.id !== col.id);
+        renderCollections();
+        saveAll();
       });
 
       section.appendChild(header);
@@ -398,19 +431,31 @@
   function createTabCard(tab, spaceId, collectionId) {
     const card = document.createElement('div');
     card.className = 'tab-card';
-    card.draggable = true;
+    card.draggable = !selectMode;
 
     let domain = '';
     try { domain = new URL(tab.url).hostname.replace('www.', ''); } catch {}
 
     const faviconUrl = tab.favicon || tab.favIconUrl || DEFAULT_FAVICON;
+    const tabKey = `${spaceId}:${collectionId}:${tab.id}`;
+    const isChecked = selectedTabs.has(tabKey);
 
-    card.innerHTML = `
-      <img class="tab-favicon" src="${esc(faviconUrl)}" alt="">
-      <span class="tab-title">${esc(tab.title)}</span>
-      <button class="tab-remove" title="${t('more')}">···</button>
-      <span class="tab-url" title="${esc(tab.url)}">${esc(domain || tab.url)}</span>
-    `;
+    if (selectMode) {
+      card.classList.toggle('tab-card-selected', isChecked);
+      card.innerHTML = `
+        <img class="tab-favicon" src="${esc(faviconUrl)}" alt="">
+        <span class="tab-title">${esc(tab.title)}</span>
+        <input type="checkbox" class="tab-checkbox" ${isChecked ? 'checked' : ''}>
+        <span class="tab-url" title="${esc(tab.url)}">${esc(domain || tab.url)}</span>
+      `;
+    } else {
+      card.innerHTML = `
+        <img class="tab-favicon" src="${esc(faviconUrl)}" alt="">
+        <span class="tab-title">${esc(tab.title)}</span>
+        <button class="tab-remove" title="${t('more')}">···</button>
+        <span class="tab-url" title="${esc(tab.url)}">${esc(domain || tab.url)}</span>
+      `;
+    }
 
     // Fallback favicon on error (no inline handler for CSP)
     const img = card.querySelector('.tab-favicon');
@@ -418,28 +463,201 @@
       img.src = DEFAULT_FAVICON;
     }, { once: true });
 
-    // Drag card between collections
-    card.addEventListener('dragstart', (e) => {
-      dragSource = { type: 'card', spaceId, collectionId, tabId: tab.id, tabData: { title: tab.title, url: tab.url, favicon: faviconUrl } };
-      e.dataTransfer.setData('application/json', JSON.stringify(dragSource.tabData));
-      e.dataTransfer.effectAllowed = 'move';
-      card.classList.add('dragging');
-    });
-    card.addEventListener('dragend', () => { card.classList.remove('dragging'); dragSource = null; });
+    if (selectMode) {
+      // Click toggles checkbox
+      card.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (isChecked) {
+          selectedTabs.delete(tabKey);
+        } else {
+          selectedTabs.set(tabKey, { spaceId, colId: collectionId, tabId: tab.id });
+        }
+        renderCollections();
+        updateSelectActions();
+      });
+    } else {
+      // Long press (3s) → enter select mode and select this tab
+      let longPressTimer = null;
+      card.addEventListener('mousedown', () => {
+        longPressTimer = setTimeout(() => {
+          longPressTimer = null;
+          selectMode = true;
+          selectedTabs.clear();
+          selectedTabs.set(tabKey, { spaceId, colId: collectionId, tabId: tab.id });
+          $selectTabsBtn.textContent = t('cancelSelect');
+          $addCollectionBtn.hidden = true;
+          updateSelectActions();
+          renderCollections();
+        }, 2000);
+      });
+      card.addEventListener('mouseup', () => { if (longPressTimer) clearTimeout(longPressTimer); });
+      card.addEventListener('mouseleave', () => { if (longPressTimer) clearTimeout(longPressTimer); });
+      card.addEventListener('dragstart', () => { if (longPressTimer) clearTimeout(longPressTimer); });
 
-    // Click → open
-    card.addEventListener('click', (e) => {
-      if (e.target.closest('.tab-remove')) return;
-      openUrl(tab.url);
-    });
+      // Drag card between collections
+      card.addEventListener('dragstart', (e) => {
+        dragSource = { type: 'card', spaceId, collectionId, tabId: tab.id, tabData: { title: tab.title, url: tab.url, favicon: faviconUrl } };
+        e.dataTransfer.setData('application/json', JSON.stringify(dragSource.tabData));
+        e.dataTransfer.effectAllowed = 'move';
+        card.classList.add('dragging');
+      });
+      card.addEventListener('dragend', () => { card.classList.remove('dragging'); dragSource = null; });
 
-    // Tab menu (···)
-    card.querySelector('.tab-remove').addEventListener('click', (e) => {
-      e.stopPropagation();
-      showTabContextMenu(e, spaceId, collectionId, tab);
-    });
+      // Click → open
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.tab-remove')) return;
+        openUrl(tab.url);
+      });
+
+      // Tab menu (···)
+      card.querySelector('.tab-remove').addEventListener('click', (e) => {
+        e.stopPropagation();
+        showTabContextMenu(e, spaceId, collectionId, tab);
+      });
+    }
 
     return card;
+  }
+
+  // ═══ Select Mode Helpers ═══
+
+  function exitSelectMode() {
+    if (!selectMode) return;
+    if (selectedTabs.size >= 3 && !confirm(t('confirmExitSelect'))) return;
+    selectMode = false;
+    selectedTabs.clear();
+    $selectTabsBtn.textContent = t('selectTabs');
+    $addCollectionBtn.hidden = false;
+    updateSelectActions();
+    renderCollections();
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && selectMode) {
+      exitSelectMode();
+    }
+  });
+
+  function updateSelectActions() {
+    $selectActions.hidden = !selectMode || selectedTabs.size === 0;
+    $selectCreateGroupBtn.textContent = t('createGroup');
+    $selectDeleteBtn.textContent = t('batchDelete');
+    $selectMoveBtn.textContent = t('moveCollection');
+  }
+
+  function showSelectMoveMenu(anchorEl) {
+    const otherSpaces = spaces.filter(s => s.id !== activeSpaceId);
+    if (otherSpaces.length === 0) return;
+
+    $collDropMenu.innerHTML = '';
+    otherSpaces.forEach(sp => {
+      const btn = document.createElement('button');
+      btn.className = 'context-menu-item';
+      btn.textContent = sp.icon && !sp.icon.startsWith('http') && !sp.icon.startsWith('chrome-extension://') ? `${sp.icon} ${sp.name}` : sp.name;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showSelectCopyMoveMenu(sp.id);
+      });
+      $collDropMenu.appendChild(btn);
+    });
+
+    const rect = anchorEl.getBoundingClientRect();
+    $collDropMenu.style.left = rect.left + 'px';
+    $collDropMenu.style.top = (rect.bottom + 4) + 'px';
+    $collDropMenu.hidden = false;
+
+    requestAnimationFrame(() => {
+      const mr = $collDropMenu.getBoundingClientRect();
+      if (mr.right > window.innerWidth) $collDropMenu.style.left = (window.innerWidth - mr.width - 8) + 'px';
+      if (mr.bottom > window.innerHeight) $collDropMenu.style.top = (rect.top - mr.height - 4) + 'px';
+    });
+  }
+
+  function showSelectCopyMoveMenu(toSpaceId) {
+    $collDropMenu.innerHTML = '';
+
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'context-menu-item';
+    copyBtn.textContent = t('copyCollection');
+    copyBtn.addEventListener('click', () => {
+      $collDropMenu.hidden = true;
+      execSelectCopyMove('copy', toSpaceId);
+    });
+
+    const moveBtn = document.createElement('button');
+    moveBtn.className = 'context-menu-item';
+    moveBtn.textContent = t('moveCollection');
+    moveBtn.addEventListener('click', () => {
+      $collDropMenu.hidden = true;
+      execSelectCopyMove('move', toSpaceId);
+    });
+
+    $collDropMenu.appendChild(copyBtn);
+    $collDropMenu.appendChild(moveBtn);
+  }
+
+  async function execSelectCopyMove(action, toSpaceId) {
+    if (selectedTabs.size === 0) return;
+    const toSpace = spaces.find(s => s.id === toSpaceId);
+    if (!toSpace) return;
+
+    const now = new Date();
+    const timestamp = now.toLocaleString('en-US', {
+      month: '2-digit', day: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
+    }).replace(',', ',');
+
+    const newCol = {
+      id: StorageManager.generateId(),
+      spaceId: toSpaceId,
+      name: timestamp,
+      icon: '',
+      order: 0,
+      tabs: [],
+      collapsed: false,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    // Collect tabs
+    for (const [, info] of selectedTabs) {
+      const srcSpace = spaces.find(s => s.id === info.spaceId);
+      if (!srcSpace) continue;
+      const srcCol = srcSpace.collections.find(c => c.id === info.colId);
+      if (!srcCol) continue;
+      const srcTab = srcCol.tabs.find(t => t.id === info.tabId);
+      if (!srcTab) continue;
+      const cloned = JSON.parse(JSON.stringify(srcTab));
+      cloned.id = StorageManager.generateId();
+      cloned.collectionId = newCol.id;
+      newCol.tabs.push(cloned);
+    }
+
+    toSpace.collections.unshift(newCol);
+    toSpace.updatedAt = Date.now();
+
+    // If move, remove originals
+    if (action === 'move') {
+      for (const [, info] of selectedTabs) {
+        const srcSpace = spaces.find(s => s.id === info.spaceId);
+        if (!srcSpace) continue;
+        const srcCol = srcSpace.collections.find(c => c.id === info.colId);
+        if (!srcCol) continue;
+        srcCol.tabs = srcCol.tabs.filter(t => t.id !== info.tabId);
+        srcCol.updatedAt = Date.now();
+      }
+      showToast(t('movedTo', toSpace.name));
+    } else {
+      showToast(t('copiedTo', toSpace.name));
+    }
+
+    selectedTabs.clear();
+    selectMode = false;
+    $selectTabsBtn.textContent = t('selectTabs');
+    $addCollectionBtn.hidden = false;
+    updateSelectActions();
+    await saveAll();
+    renderCollections();
   }
 
   // ═══ Collection Drag Reorder (custom mousedown) ═══
@@ -733,6 +951,82 @@
         spaces = await StorageManager.getSpaces();
         renderCollections();
       });
+    });
+
+    // ── Select Mode ──
+    $selectTabsBtn.addEventListener('click', () => {
+      if (selectMode) {
+        exitSelectMode();
+      } else {
+        selectMode = true;
+        selectedTabs.clear();
+        $selectTabsBtn.textContent = t('cancelSelect');
+        $addCollectionBtn.hidden = true;
+        updateSelectActions();
+        renderCollections();
+      }
+    });
+
+    $selectCreateGroupBtn.addEventListener('click', async () => {
+      if (selectedTabs.size === 0) return;
+      const space = spaces.find(s => s.id === activeSpaceId);
+      if (!space) return;
+      const now = new Date();
+      const timestamp = now.toLocaleString('en-US', {
+        month: '2-digit', day: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
+      }).replace(',', ',');
+      const newCol = {
+        id: StorageManager.generateId(),
+        spaceId: space.id,
+        name: timestamp,
+        icon: '',
+        order: 0,
+        tabs: [],
+        collapsed: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      // Collect selected tabs and remove from original collections
+      for (const [, info] of selectedTabs) {
+        const srcCol = space.collections.find(c => c.id === info.colId);
+        if (!srcCol) continue;
+        const tabIdx = srcCol.tabs.findIndex(t => t.id === info.tabId);
+        if (tabIdx === -1) continue;
+        const [tab] = srcCol.tabs.splice(tabIdx, 1);
+        tab.collectionId = newCol.id;
+        tab.id = StorageManager.generateId();
+        newCol.tabs.push(tab);
+      }
+      space.collections.unshift(newCol);
+      selectedTabs.clear();
+      selectMode = false;
+      $selectTabsBtn.textContent = t('selectTabs');
+      $addCollectionBtn.hidden = false;
+      updateSelectActions();
+      await saveAll();
+      renderCollections();
+    });
+
+    $selectDeleteBtn.addEventListener('click', async () => {
+      if (selectedTabs.size === 0) return;
+      const space = spaces.find(s => s.id === activeSpaceId);
+      if (!space) return;
+      for (const [, info] of selectedTabs) {
+        const col = space.collections.find(c => c.id === info.colId);
+        if (!col) continue;
+        col.tabs = col.tabs.filter(t => t.id !== info.tabId);
+      }
+      selectedTabs.clear();
+      updateSelectActions();
+      await saveAll();
+      renderCollections();
+    });
+
+    $selectMoveBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (selectedTabs.size === 0) return;
+      showSelectMoveMenu(e.target);
     });
 
     $searchInput.addEventListener('input', (e) => {

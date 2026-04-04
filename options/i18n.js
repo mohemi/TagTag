@@ -16,6 +16,12 @@ const I18N = {
       // Top bar
       searchTabs: 'Search Tabs',
       addCollection: '+ Add collection',
+      selectTabs: 'Select Tabs',
+      cancelSelect: 'Cancel',
+      confirmExitSelect: 'You have selected tabs. Exit select mode?',
+      createGroup: 'Create Group',
+      batchDelete: 'Delete',
+      selectAll: 'All',
 
       // Tabs count
       tabs: 'Tabs',
@@ -117,6 +123,12 @@ const I18N = {
       // Top bar
       searchTabs: '搜索标签页',
       addCollection: '+ 添加标签组',
+      selectTabs: '选择标签',
+      cancelSelect: '取消',
+      confirmExitSelect: '已选择了标签，确定退出选择模式？',
+      createGroup: '创建分组',
+      batchDelete: '删除',
+      selectAll: '全选',
 
       // Tabs count
       tabs: '标签页',
