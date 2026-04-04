@@ -75,6 +75,9 @@ const I18N = {
       // Tooltips
       more: 'More',
       dragToReorder: 'Drag to reorder',
+      copyCollection: 'Copy',
+      moveCollection: 'Move',
+      copiedTo: (name) => `Copied to "${name}"`,
 
       // Settings & Preferences
       preferences: 'Preferences',
@@ -173,6 +176,9 @@ const I18N = {
       // Tooltips
       more: '更多',
       dragToReorder: '拖拽排序',
+      copyCollection: '复制',
+      moveCollection: '移动',
+      copiedTo: (name) => `已复制到"${name}"`,
 
       // Settings & Preferences
       preferences: '偏好设置',

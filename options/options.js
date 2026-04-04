@@ -264,6 +264,7 @@
         <span class="collection-toggle ${col.collapsed ? 'collapsed' : ''}">▼</span>
         <span class="collection-name">${esc(col.name)}</span>
         <div class="collection-actions">
+          <button class="btn-icon collection-move-btn" title="${t('moveCollection')}" style="font-size:12px">⇄</button>
           <button class="btn-icon collection-rename-btn" title="${t('rename')}" style="font-size:13px">✎</button>
           <button class="btn-icon collection-delete-btn" title="${t('delete')}" style="font-size:14px">&times;</button>
         </div>
@@ -309,6 +310,12 @@
           if (ev.key === 'Enter') { input.blur(); }
           else if (ev.key === 'Escape') { input.value = col.name; input.blur(); }
         });
+      });
+
+      // Move/Copy to another space
+      header.querySelector('.collection-move-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        showSpacePickerMenu(e.target, col.id, space.id);
       });
 
       header.querySelector('.collection-rename-btn').addEventListener('click', () => {
@@ -437,6 +444,8 @@
 
   // ═══ Collection Drag Reorder (custom mousedown) ═══
 
+  const $collDropMenu = document.getElementById('collDropMenu');
+
   function startCollectionDrag(e, sectionEl, colId, space) {
     const allSections = Array.from($collectionsArea.querySelectorAll('.collection-section'));
     const fromIdx = allSections.indexOf(sectionEl);
@@ -445,7 +454,6 @@
     const rect = sectionEl.getBoundingClientRect();
     const offsetY = e.clientY - rect.top;
 
-    // Create floating clone
     const clone = sectionEl.cloneNode(true);
     clone.className = 'collection-section collection-drag-clone';
     clone.style.width = rect.width + 'px';
@@ -453,21 +461,17 @@
     clone.style.top = (e.clientY - offsetY) + 'px';
     document.body.appendChild(clone);
 
-    // Hide original and add placeholder
     sectionEl.classList.add('collection-drag-placeholder');
-
     let currentIdx = fromIdx;
 
     function onMove(e2) {
       clone.style.top = (e2.clientY - offsetY) + 'px';
-
       for (let i = 0; i < allSections.length; i++) {
         if (allSections[i] === sectionEl) continue;
         const r = allSections[i].getBoundingClientRect();
         const midY = r.top + r.height / 2;
         if (e2.clientY > r.top && e2.clientY < r.bottom) {
-          const targetIdx = i;
-          if (targetIdx !== currentIdx) {
+          if (i !== currentIdx) {
             if (e2.clientY < midY) {
               $collectionsArea.insertBefore(sectionEl, allSections[i]);
             } else {
@@ -485,14 +489,12 @@
     function onUp() {
       clone.remove();
       sectionEl.classList.remove('collection-drag-placeholder');
-
       const newOrder = Array.from($collectionsArea.querySelectorAll('.collection-section')).map(el => el.dataset.collectionId);
       const reordered = newOrder.map(id => space.collections.find(c => c.id === id)).filter(Boolean);
       reordered.forEach((c, i) => c.order = i);
       space.collections = reordered;
       saveAll();
       renderCollections();
-
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     }
@@ -500,6 +502,104 @@
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   }
+
+  // ═══ Space Picker Menu (for Move/Copy collection) ═══
+
+  function showSpacePickerMenu(anchorEl, colId, fromSpaceId) {
+    // Build a space list menu dynamically
+    const otherSpaces = spaces.filter(s => s.id !== fromSpaceId);
+    if (otherSpaces.length === 0) return;
+
+    // Reuse collDropMenu as a two-step menu
+    // Step 1: show list of spaces
+    $collDropMenu.innerHTML = '';
+    otherSpaces.forEach(sp => {
+      const btn = document.createElement('button');
+      btn.className = 'context-menu-item';
+      btn.textContent = sp.icon && !sp.icon.startsWith('http') && !sp.icon.startsWith('chrome-extension://') ? `${sp.icon} ${sp.name}` : sp.name;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // Step 2: show copy/move options
+        showCopyMoveMenu(colId, fromSpaceId, sp.id);
+      });
+      $collDropMenu.appendChild(btn);
+    });
+
+    const rect = anchorEl.getBoundingClientRect();
+    $collDropMenu.style.left = rect.left + 'px';
+    $collDropMenu.style.top = (rect.bottom + 4) + 'px';
+    $collDropMenu.hidden = false;
+
+    requestAnimationFrame(() => {
+      const mr = $collDropMenu.getBoundingClientRect();
+      if (mr.right > window.innerWidth) $collDropMenu.style.left = (window.innerWidth - mr.width - 8) + 'px';
+      if (mr.bottom > window.innerHeight) $collDropMenu.style.top = (rect.top - mr.height - 4) + 'px';
+    });
+  }
+
+  function showCopyMoveMenu(colId, fromSpaceId, toSpaceId) {
+    $collDropMenu.innerHTML = '';
+
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'context-menu-item';
+    copyBtn.textContent = t('copyCollection');
+    copyBtn.addEventListener('click', () => {
+      $collDropMenu.hidden = true;
+      execCollectionCopyMove('copy', colId, fromSpaceId, toSpaceId);
+    });
+
+    const moveBtn = document.createElement('button');
+    moveBtn.className = 'context-menu-item';
+    moveBtn.textContent = t('moveCollection');
+    moveBtn.addEventListener('click', () => {
+      $collDropMenu.hidden = true;
+      execCollectionCopyMove('move', colId, fromSpaceId, toSpaceId);
+    });
+
+    $collDropMenu.appendChild(copyBtn);
+    $collDropMenu.appendChild(moveBtn);
+  }
+
+  async function execCollectionCopyMove(action, colId, fromSpaceId, toSpaceId) {
+    const fromSpace = spaces.find(s => s.id === fromSpaceId);
+    const toSpace = spaces.find(s => s.id === toSpaceId);
+    if (!fromSpace || !toSpace) return;
+
+    const colIdx = fromSpace.collections.findIndex(c => c.id === colId);
+    if (colIdx === -1) return;
+    const col = fromSpace.collections[colIdx];
+
+    if (action === 'copy') {
+      const newCol = JSON.parse(JSON.stringify(col));
+      newCol.id = StorageManager.generateId();
+      newCol.spaceId = toSpaceId;
+      newCol.tabs.forEach(tab => {
+        tab.id = StorageManager.generateId();
+        tab.collectionId = newCol.id;
+      });
+      toSpace.collections.unshift(newCol);
+      toSpace.updatedAt = Date.now();
+      await saveAll();
+      showToast(t('copiedTo', toSpace.name));
+    } else {
+      fromSpace.collections.splice(colIdx, 1);
+      fromSpace.updatedAt = Date.now();
+      col.spaceId = toSpaceId;
+      toSpace.collections.unshift(col);
+      toSpace.updatedAt = Date.now();
+      await saveAll();
+      showToast(t('movedTo', toSpace.name));
+    }
+
+    renderSpaces();
+    renderCollections();
+  }
+
+  document.addEventListener('click', (e) => {
+    if (!$collDropMenu.hidden && !$collDropMenu.contains(e.target)) {
+      $collDropMenu.hidden = true;
+    }
+  });
 
   // ═══ Render: Right Sidebar (Current Browser Tabs) ═══
 
