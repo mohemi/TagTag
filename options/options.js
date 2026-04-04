@@ -506,7 +506,7 @@
       // Click → open
       card.addEventListener('click', (e) => {
         if (e.target.closest('.tab-remove')) return;
-        openUrl(tab.url);
+        openUrl(tab.url, e.metaKey || e.ctrlKey);
       });
 
       // Tab menu (···)
@@ -1531,14 +1531,14 @@
     setTimeout(() => el.remove(), 2000);
   }
 
-  async function openUrl(url) {
+  async function openUrl(url, forceNewTab) {
     const settings = await StorageManager.getSettings();
     const mode = settings.openTabMode || 'redirect';
     try {
-      if (mode === 'redirect') {
-        chrome.tabs.update({ url });
-      } else {
+      if (forceNewTab || mode === 'new-tab') {
         chrome.tabs.create({ url });
+      } else {
+        chrome.tabs.update({ url });
       }
     } catch { window.open(url, '_blank'); }
   }
