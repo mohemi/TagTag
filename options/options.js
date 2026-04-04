@@ -1224,6 +1224,11 @@
   let tabMenuTarget = null;
 
   function showTabContextMenu(e, spaceId, collectionId, tab) {
+    // Toggle: if menu is already open, close it
+    if (!$tabContextMenu.hidden) {
+      hideTabContextMenu();
+      return;
+    }
     tabMenuTarget = { spaceId, collectionId, tab };
     $tabContextMenu.hidden = false;
     const rect = e.target.getBoundingClientRect();
