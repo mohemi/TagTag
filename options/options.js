@@ -867,7 +867,7 @@
       });
 
       li.addEventListener('dragstart', (e) => {
-        dragSource = { type: 'browser', tabData: { title: tab.title || '', url: tab.url || '', favicon: tab.favIconUrl || '' } };
+        dragSource = { type: 'browser', browserTabId: tab.id, tabData: { title: tab.title || '', url: tab.url || '', favicon: tab.favIconUrl || '' } };
         e.dataTransfer.setData('application/json', JSON.stringify(dragSource.tabData));
         e.dataTransfer.effectAllowed = 'copy';
       });
@@ -907,10 +907,67 @@
     }
 
     if (targetCol.tabs.some(t => t.url === data.url)) { showToast(t('tabAlreadyExists')); return; }
-    targetCol.tabs.push(makeTab(data, targetColId));
+
+    // Browser tab drop → show copy/move menu
+    const browserTabId = dragSource && dragSource.type === 'browser' ? dragSource.browserTabId : null;
+    showBrowserTabDropMenu(e, data, targetCol, targetColId, browserTabId);
+  }
+
+  function showBrowserTabDropMenu(e, data, targetCol, targetColId, browserTabId) {
+    // Immediately show the tab in the collection as a preview
+    const previewTab = makeTab(data, targetColId);
+    targetCol.tabs.push(previewTab);
     renderCollections();
-    saveAll();
-    showToast(t('addedTo', targetCol.name));
+
+    $collDropMenu.innerHTML = '';
+
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'context-menu-item';
+    copyBtn.textContent = t('copyCollection');
+    copyBtn.addEventListener('click', async () => {
+      $collDropMenu.hidden = true;
+      // Already added, just save
+      await saveAll();
+      showToast(t('addedTo', targetCol.name));
+    });
+
+    const moveBtn = document.createElement('button');
+    moveBtn.className = 'context-menu-item';
+    moveBtn.textContent = t('moveCollection');
+    moveBtn.addEventListener('click', async () => {
+      $collDropMenu.hidden = true;
+      // Already added, save and close browser tab
+      await saveAll();
+      showToast(t('movedTo', targetCol.name));
+      if (browserTabId) {
+        try { await chrome.tabs.remove(browserTabId); } catch {}
+      }
+    });
+
+    // Cancel — remove the preview tab
+    const cancelHandler = (ev) => {
+      if (!$collDropMenu.hidden && !$collDropMenu.contains(ev.target)) {
+        $collDropMenu.hidden = true;
+        targetCol.tabs = targetCol.tabs.filter(t => t.id !== previewTab.id);
+        renderCollections();
+        document.removeEventListener('click', cancelHandler);
+      }
+    };
+    // Defer so this click doesn't fire immediately
+    setTimeout(() => document.addEventListener('click', cancelHandler), 0);
+
+    $collDropMenu.appendChild(copyBtn);
+    $collDropMenu.appendChild(moveBtn);
+
+    $collDropMenu.style.left = e.clientX + 'px';
+    $collDropMenu.style.top = e.clientY + 'px';
+    $collDropMenu.hidden = false;
+
+    requestAnimationFrame(() => {
+      const mr = $collDropMenu.getBoundingClientRect();
+      if (mr.right > window.innerWidth) $collDropMenu.style.left = (window.innerWidth - mr.width - 8) + 'px';
+      if (mr.bottom > window.innerHeight) $collDropMenu.style.top = (window.innerHeight - mr.height - 8) + 'px';
+    });
   }
 
   function makeTab(data, collectionId) {
