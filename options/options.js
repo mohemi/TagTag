@@ -312,11 +312,11 @@
         <span class="collection-name">${esc(group.name)}</span>
         <div class="collection-actions">
           ${selectMode
-            ? `<button class="btn-icon collection-selectall-btn" title="${t('selectAll')}" style="font-size:11px">☐</button>`
-            : `<button class="btn-icon collection-move-btn" title="${t('moveCollection')}" style="font-size:12px">⇄</button>`
+            ? `<button class="btn-icon collection-selectall-btn" title="${t('selectAll')}" style="font-size:11px">☐ ${t('selectAll')}</button>`
+            : `<button class="btn-icon collection-move-btn" title="${t('moveCollection')}" style="font-size:12px">⇄ ${t('moveCollection')}</button>`
           }
-          <button class="btn-icon collection-rename-btn" title="${t('rename')}" style="font-size:13px">✎</button>
-          <button class="btn-icon collection-delete-btn" title="${t('delete')}" style="font-size:14px">×</button>
+          <button class="btn-icon collection-rename-btn" title="${t('rename')}" style="font-size:13px">✎ ${t('rename')}</button>
+          <button class="btn-icon collection-delete-btn" title="${t('delete')}" style="font-size:14px">× ${t('delete')}</button>
         </div>
       `;
 
