@@ -9,6 +9,9 @@
     "storage",
     "tabGroups"
   ],
+  "host_permissions": [
+    "https://dav.jianguoyun.com/*"
+  ],
   "options_page": "options/options.html",
   "chrome_url_overrides": {
     "newtab": "options/options.html"

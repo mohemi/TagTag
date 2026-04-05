@@ -76,6 +76,7 @@
   const $webdavUsername = document.getElementById('webdavUsername');
   const $webdavPassword = document.getElementById('webdavPassword');
   const $toggleWebdavPassword = document.getElementById('toggleWebdavPassword');
+  const $webdavTestBtn = document.getElementById('webdavTestBtn');
   const $syncUploadBtn = document.getElementById('syncUploadBtn');
   const $syncDownloadBtn = document.getElementById('syncDownloadBtn');
   const $webdavAutoSync = document.getElementById('webdavAutoSync');
@@ -1639,11 +1640,23 @@
     }
     if (syncFields[3]) {
       const label = syncFields[3].querySelector('label');
-      if (label) label.textContent = t('syncDirection');
+      if (label) label.textContent = t('testConnect');
     }
     if (syncFields[4]) {
-      const label = syncFields[4].querySelector('label:first-child');
+      const label = syncFields[4].querySelector('label');
+      if (label) label.textContent = t('syncDirection');
+    }
+    if (syncFields[5]) {
+      const label = syncFields[5].querySelector('label:first-child');
       if (label) label.textContent = t('autoSync');
+    }
+
+    const testBtn = document.getElementById('webdavTestBtn');
+    if (testBtn) {
+      testBtn.innerHTML = `
+        <svg viewBox="0 0 16 16" fill="none"><path d="M3 8l3 3 7-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        ${t('testConnect')}
+      `;
     }
     
     // Sync buttons
@@ -1853,12 +1866,15 @@
   // ── WebDAV Sync ──
 
   const WEBDAV_SETTINGS_KEY = 'tagtag_webdav_settings';
+  const WEBDAV_BACKUP_FILENAME = 'tagtag_backup.json';
+  const WEBDAV_DEFAULT_SYNC_DIR = 'TagTag';
+  const WEBDAV_OK_STATUSES = new Set([200, 201, 204, 207, 301, 302, 401, 403, 404, 405]);
 
   async function loadWebDAVSettings() {
     const settings = await chrome.storage.local.get(WEBDAV_SETTINGS_KEY);
     const webdavSettings = settings[WEBDAV_SETTINGS_KEY] || {};
     
-    $webdavUrl.value = webdavSettings.url || 'https://dav.jianguoyun.com/dav/';
+    $webdavUrl.value = getNormalizedWebDAVDirectoryUrl(webdavSettings.url || 'https://dav.jianguoyun.com/dav/TagTag/');
     $webdavUsername.value = webdavSettings.username || '';
     $webdavPassword.value = webdavSettings.Password || '';
     $webdavToggle.checked = webdavSettings.enabled || false;
@@ -1869,8 +1885,8 @@
 
   async function saveWebDAVSettings() {
     const settings = {
-      url: $webdavUrl.value,
-      username: $webdavUsername.value,
+      url: getNormalizedWebDAVDirectoryUrl($webdavUrl.value),
+      username: $webdavUsername.value.trim(),
       Password: $webdavPassword.value,
       enabled: $webdavToggle.checked,
       autoSync: $webdavAutoSync.checked
@@ -1892,98 +1908,304 @@
     return `Basic ${credentials}`;
   }
 
-  async function uploadToWebDAV() {
-    const settings = await chrome.storage.local.get(WEBDAV_SETTINGS_KEY);
-    const webdavSettings = settings[WEBDAV_SETTINGS_KEY];
-    
-    if (!webdavSettings || !webdavSettings.enabled) {
-      showToast('Please enable WebDAV sync first');
+  function normalizeWebDAVUrl(url) {
+    const trimmed = (url || '').trim();
+    if (!trimmed) return '';
+    return trimmed.endsWith('/') ? trimmed : `${trimmed}/`;
+  }
+
+  function getNormalizedWebDAVDirectoryUrl(url) {
+    const normalizedUrl = normalizeWebDAVUrl(url);
+    if (!normalizedUrl) return '';
+
+    const parsedUrl = new URL(normalizedUrl);
+    const pathname = parsedUrl.pathname.endsWith('/') ? parsedUrl.pathname : `${parsedUrl.pathname}/`;
+
+    if (pathname === '/dav/' || pathname === '/dav') {
+      parsedUrl.pathname = `/dav/${WEBDAV_DEFAULT_SYNC_DIR}/`;
+      return parsedUrl.toString();
+    }
+
+    parsedUrl.pathname = pathname;
+    return parsedUrl.toString();
+  }
+
+  function getWebDAVSettingsFromForm() {
+    return {
+      url: getNormalizedWebDAVDirectoryUrl($webdavUrl.value),
+      username: $webdavUsername.value.trim(),
+      Password: $webdavPassword.value,
+      enabled: $webdavToggle.checked,
+      autoSync: $webdavAutoSync.checked
+    };
+  }
+
+  function validateWebDAVSettings(webdavSettings) {
+    if (!webdavSettings.url || !webdavSettings.username || !webdavSettings.Password) {
+      throw new Error(t('webdavMissingConfig'));
+    }
+  }
+
+  function getWebDAVDirectoryUrl(webdavSettings) {
+    return getNormalizedWebDAVDirectoryUrl(webdavSettings.url);
+  }
+
+  function getWebDAVServiceUrl(webdavSettings) {
+    const parsedUrl = new URL(getWebDAVDirectoryUrl(webdavSettings));
+    const davIndex = parsedUrl.pathname.indexOf('/dav/');
+
+    if (davIndex >= 0) {
+      parsedUrl.pathname = parsedUrl.pathname.slice(0, davIndex + 5);
+    } else {
+      parsedUrl.pathname = '/';
+    }
+
+    parsedUrl.search = '';
+    parsedUrl.hash = '';
+    return parsedUrl.toString();
+  }
+
+  function getWebDAVFileUrl(webdavSettings, filename = WEBDAV_BACKUP_FILENAME) {
+    return `${getWebDAVDirectoryUrl(webdavSettings)}${filename}`;
+  }
+
+  function getWebDAVHeaders(webdavSettings, extraHeaders = {}) {
+    return {
+      'Authorization': getWebDAVAuthHeader(webdavSettings.username, webdavSettings.Password),
+      ...extraHeaders
+    };
+  }
+
+  function webdavRequest(method, url, { headers = {}, body = null, timeout = 15000 } = {}) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open(method, url, true);
+      xhr.timeout = timeout;
+
+      Object.entries(headers).forEach(([key, value]) => {
+        xhr.setRequestHeader(key, value);
+      });
+
+      xhr.onload = () => {
+        resolve({
+          ok: xhr.status >= 200 && xhr.status < 300,
+          status: xhr.status,
+          statusText: xhr.statusText,
+          text: xhr.responseText
+        });
+      };
+
+      xhr.onerror = () => {
+        reject(new Error('Network request failed'));
+      };
+
+      xhr.ontimeout = () => {
+        reject(new Error('Request timed out'));
+      };
+
+      xhr.send(body);
+    });
+  }
+
+  async function probeWebDAVService(webdavSettings) {
+    let response;
+
+    try {
+      response = await webdavRequest('OPTIONS', getWebDAVServiceUrl(webdavSettings), {
+        headers: getWebDAVHeaders(webdavSettings)
+      });
+    } catch (err) {
+      throw new Error(`${t('webdavServiceOffline')}: ${err.message}`);
+    }
+
+    if (!WEBDAV_OK_STATUSES.has(response.status)) {
+      throw new Error(`${t('webdavServiceOffline')}: HTTP ${response.status}`);
+    }
+
+    return response;
+  }
+
+  async function ensureWebDAVDirectory(webdavSettings) {
+    const directoryUrl = getWebDAVDirectoryUrl(webdavSettings);
+    const headers = getWebDAVHeaders(webdavSettings, { 'Depth': '0' });
+
+    const response = await webdavRequest('PROPFIND', directoryUrl, {
+      headers
+    });
+
+    if (response.status === 207 || response.ok) {
+      return { exists: true, created: false };
+    }
+
+    if (response.status === 401 || response.status === 403) {
+      throw new Error(t('webdavAuthFailed'));
+    }
+
+    if (response.status !== 404) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const createResponse = await webdavRequest('MKCOL', directoryUrl, {
+      headers: getWebDAVHeaders(webdavSettings)
+    });
+
+    if (createResponse.status === 201 || createResponse.status === 405 || createResponse.ok) {
+      return { exists: false, created: true };
+    }
+
+    if (createResponse.status === 401 || createResponse.status === 403) {
+      throw new Error(t('webdavAuthFailed'));
+    }
+
+    throw new Error(`HTTP ${createResponse.status}: ${createResponse.statusText}`);
+  }
+
+  async function exportBackupToTempFile() {
+    const backupData = await StorageManager.exportToBackup();
+    return JSON.stringify(backupData, null, 2);
+  }
+
+  async function uploadTempBackupFile(webdavSettings, tempFile) {
+    const fileUrl = getWebDAVFileUrl(webdavSettings);
+    const response = await webdavRequest('PUT', fileUrl, {
+      headers: getWebDAVHeaders(webdavSettings, {
+        'Content-Type': 'application/json'
+      }),
+      body: tempFile
+    });
+
+    if (response.status === 404) {
+      await ensureWebDAVDirectory(webdavSettings);
+      const retryResponse = await webdavRequest('PUT', fileUrl, {
+        headers: getWebDAVHeaders(webdavSettings, {
+          'Content-Type': 'application/json'
+        }),
+        body: tempFile
+      });
+
+      if (!retryResponse.ok) {
+        throw new Error(`HTTP ${retryResponse.status}: ${retryResponse.statusText} (${fileUrl})`);
+      }
       return;
     }
 
-    try {
-      showToast('Uploading to WebDAV...');
-      
-      const backupData = await StorageManager.exportToBackup();
-      const content = JSON.stringify(backupData, null, 2);
-      
-      const url = webdavSettings.url.endsWith('/') ? webdavSettings.url : webdavSettings.url + '/';
-      const filename = 'tagtag_backup.json';
-      
-      const response = await fetch(url + filename, {
-        method: 'PUT',
-        headers: {
-          'Authorization': getWebDAVAuthHeader(webdavSettings.username, webdavSettings.Password),
-          'Content-Type': 'application/json'
-        },
-        body: content
-      });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText} (${fileUrl})`);
+    }
+  }
 
-      if (response.ok) {
-        showToast('Upload successful!');
-      } else {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
+  async function downloadBackupToTempFile(webdavSettings) {
+    const fileUrl = getWebDAVFileUrl(webdavSettings);
+    const response = await webdavRequest('GET', fileUrl, {
+      headers: getWebDAVHeaders(webdavSettings)
+    });
+
+    if (response.status === 404) {
+      throw new Error(`${t('noBackupFound')} (${fileUrl})`);
+    }
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return response.text;
+  }
+
+  function cleanupTempFile() {
+    return;
+  }
+
+  async function refreshDataAfterImport() {
+    data = await StorageManager.getData();
+    await updateBackupStats();
+    renderSpaces();
+    renderGroups();
+
+    if (data.space_list.length > 0) {
+      switchSpace(data.space_list[0].id);
+    }
+  }
+
+  async function testWebDAVConnection() {
+    try {
+      const webdavSettings = getWebDAVSettingsFromForm();
+      validateWebDAVSettings(webdavSettings);
+      await saveWebDAVSettings();
+
+      showToast(t('webdavTesting'));
+      await probeWebDAVService(webdavSettings);
+      const result = await ensureWebDAVDirectory(webdavSettings);
+
+      showToast(result.created ? `${t('webdavDirectoryCreated')} ${t('webdavConnectionSuccess')}` : t('webdavConnectionSuccess'));
     } catch (err) {
+      console.error('WebDAV test error:', err);
+      showToast(err.message || t('syncFailed'));
+    }
+  }
+
+  async function uploadToWebDAV() {
+    let tempFile = null;
+    try {
+      const webdavSettings = getWebDAVSettingsFromForm();
+      if (!webdavSettings.enabled) {
+        showToast(t('pleaseEnableWebDAV'));
+        return;
+      }
+
+      validateWebDAVSettings(webdavSettings);
+      await saveWebDAVSettings();
+
+      showToast(t('webdavUploading'));
+      await probeWebDAVService(webdavSettings);
+      await ensureWebDAVDirectory(webdavSettings);
+
+      tempFile = await exportBackupToTempFile();
+      await uploadTempBackupFile(webdavSettings, tempFile);
+
+      cleanupTempFile(tempFile);
+      showToast(t('uploadSuccess'));
+    } catch (err) {
+      cleanupTempFile(tempFile);
       console.error('WebDAV upload error:', err);
-      showToast('Upload failed: ' + err.message);
+      showToast(`${t('syncFailed')}: ${err.message}`);
     }
   }
 
   async function downloadFromWebDAV() {
-    const settings = await chrome.storage.local.get(WEBDAV_SETTINGS_KEY);
-    const webdavSettings = settings[WEBDAV_SETTINGS_KEY];
-    
-    if (!webdavSettings || !webdavSettings.enabled) {
-      showToast('Please enable WebDAV sync first');
-      return;
-    }
-
     try {
-      showToast('Downloading from WebDAV...');
-      
-      const url = webdavSettings.url.endsWith('/') ? webdavSettings.url : webdavSettings.url + '/';
-      const filename = 'tagtag_backup.json';
-      
-      const response = await fetch(url + filename, {
-        method: 'GET',
-        headers: {
-          'Authorization': getWebDAVAuthHeader(webdavSettings.username, webdavSettings.Password)
-        }
-      });
-
-      if (response.ok) {
-        const content = await response.text();
-        const backupData = JSON.parse(content);
-        
-        $progressTitle.textContent = t('importing');
-        $progressBarFill.style.width = '50%';
-        $progressText.textContent = '50%';
-        $progressOverlay.hidden = false;
-        
-        await StorageManager.importFromBackup(backupData);
-        data = await StorageManager.getData();
-        
-        $progressOverlay.hidden = true;
-        showToast('Download and import successful!');
-        
-        // Refresh UI
-        await updateBackupStats();
-        renderSpaces();
-        renderGroups();
-        
-        if (data.space_list.length > 0) {
-          switchSpace(data.space_list[0].id);
-        }
-      } else if (response.status === 404) {
-        showToast('No backup file found on server');
-      } else {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      const webdavSettings = getWebDAVSettingsFromForm();
+      if (!webdavSettings.enabled) {
+        showToast(t('pleaseEnableWebDAV'));
+        return;
       }
+
+      validateWebDAVSettings(webdavSettings);
+      await saveWebDAVSettings();
+
+      showToast(t('webdavDownloading'));
+      await probeWebDAVService(webdavSettings);
+      await ensureWebDAVDirectory(webdavSettings);
+
+      const tempContent = await downloadBackupToTempFile(webdavSettings);
+      const backupData = JSON.parse(tempContent);
+
+      $progressTitle.textContent = t('importing');
+      $progressBarFill.style.width = '50%';
+      $progressText.textContent = '50%';
+      $progressOverlay.hidden = false;
+
+      await StorageManager.importFromBackup(backupData);
+
+      $progressBarFill.style.width = '100%';
+      $progressText.textContent = '100%';
+      $progressOverlay.hidden = true;
+
+      await refreshDataAfterImport();
+      showToast(t('downloadSuccess'));
     } catch (err) {
       $progressOverlay.hidden = true;
       console.error('WebDAV download error:', err);
-      showToast('Download failed: ' + err.message);
+      showToast(`${t('syncFailed')}: ${err.message}`);
     }
   }
 
@@ -2026,6 +2248,7 @@
   });
 
   // Sync buttons
+  $webdavTestBtn.addEventListener('click', testWebDAVConnection);
   $syncUploadBtn.addEventListener('click', uploadToWebDAV);
   $syncDownloadBtn.addEventListener('click', downloadFromWebDAV);
 
