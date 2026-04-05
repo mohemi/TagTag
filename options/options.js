@@ -13,6 +13,9 @@
   let dragSource = null;
   let selectMode = false;
   let selectedTabs = new Map(); // key: "spaceId:groupId:tabId", value: { spaceId, groupId, tabId }
+  let autoSyncTimer = null;
+  let autoSyncInProgress = false;
+  let suppressAutoSyncUntil = 0;
 
   // ── DOM refs ──
   const $spacesList = document.getElementById('spacesList');
@@ -80,6 +83,7 @@
   const $syncUploadBtn = document.getElementById('syncUploadBtn');
   const $syncDownloadBtn = document.getElementById('syncDownloadBtn');
   const $webdavAutoSync = document.getElementById('webdavAutoSync');
+  const AUTO_SYNC_DEBOUNCE_MS = 2000;
 
   // ── Emoji list ──
   const EMOJIS = [
@@ -113,6 +117,7 @@
     renderGroups();
     renderCurrentTabs();
     bindEvents();
+    bindAutoSync();
   }
 
   const DEFAULT_FAVICON = chrome.runtime.getURL('assets/icons/icon128.png');
@@ -1976,6 +1981,26 @@
     };
   }
 
+  async function getStoredWebDAVSettings() {
+    const settings = await chrome.storage.local.get(WEBDAV_SETTINGS_KEY);
+    const webdavSettings = settings[WEBDAV_SETTINGS_KEY] || {};
+    return {
+      url: getNormalizedWebDAVDirectoryUrl(webdavSettings.url || 'https://dav.jianguoyun.com/dav/TagTag/'),
+      username: (webdavSettings.username || '').trim(),
+      Password: webdavSettings.Password || '',
+      enabled: Boolean(webdavSettings.enabled),
+      autoSync: Boolean(webdavSettings.autoSync)
+    };
+  }
+
+  function suppressAutoSync(ms = 5000) {
+    suppressAutoSyncUntil = Date.now() + ms;
+  }
+
+  function canRunAutoSync() {
+    return Date.now() >= suppressAutoSyncUntil;
+  }
+
   function webdavRequest(method, url, { headers = {}, body = null, timeout = 15000 } = {}) {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -2143,19 +2168,21 @@
     }
   }
 
-  async function uploadToWebDAV() {
+  async function uploadToWebDAV({ silent = false, webdavSettings: presetSettings = null } = {}) {
     let tempFile = null;
     try {
-      const webdavSettings = getWebDAVSettingsFromForm();
+      const webdavSettings = presetSettings || getWebDAVSettingsFromForm();
       if (!webdavSettings.enabled) {
-        showToast(t('pleaseEnableWebDAV'));
+        if (!silent) showToast(t('pleaseEnableWebDAV'));
         return;
       }
 
       validateWebDAVSettings(webdavSettings);
-      await saveWebDAVSettings();
+      if (!presetSettings) {
+        await saveWebDAVSettings();
+      }
 
-      showToast(t('webdavUploading'));
+      if (!silent) showToast(t('webdavUploading'));
       await probeWebDAVService(webdavSettings);
       await ensureWebDAVDirectory(webdavSettings);
 
@@ -2163,7 +2190,7 @@
       await uploadTempBackupFile(webdavSettings, tempFile);
 
       cleanupTempFile(tempFile);
-      showToast(t('uploadSuccess'));
+      if (!silent) showToast(t('uploadSuccess'));
     } catch (err) {
       cleanupTempFile(tempFile);
       console.error('WebDAV upload error:', err);
@@ -2188,6 +2215,7 @@
 
       const tempContent = await downloadBackupToTempFile(webdavSettings);
       const backupData = JSON.parse(tempContent);
+      suppressAutoSync();
 
       $progressTitle.textContent = t('importing');
       $progressBarFill.style.width = '50%';
@@ -2207,6 +2235,44 @@
       console.error('WebDAV download error:', err);
       showToast(`${t('syncFailed')}: ${err.message}`);
     }
+  }
+
+  function scheduleAutoSyncUpload() {
+    if (autoSyncTimer) {
+      clearTimeout(autoSyncTimer);
+    }
+
+    autoSyncTimer = setTimeout(async () => {
+      autoSyncTimer = null;
+
+      if (autoSyncInProgress || !canRunAutoSync()) {
+        return;
+      }
+
+      try {
+        const webdavSettings = await getStoredWebDAVSettings();
+        if (!webdavSettings.enabled || !webdavSettings.autoSync) {
+          return;
+        }
+
+        validateWebDAVSettings(webdavSettings);
+        autoSyncInProgress = true;
+        await uploadToWebDAV({ silent: true, webdavSettings });
+      } catch (err) {
+        console.error('WebDAV auto-sync error:', err);
+      } finally {
+        autoSyncInProgress = false;
+      }
+    }, AUTO_SYNC_DEBOUNCE_MS);
+  }
+
+  function bindAutoSync() {
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName !== 'local') return;
+      if (!changes[StorageManager.KEYS.DATA]) return;
+      if (!canRunAutoSync()) return;
+      scheduleAutoSyncUpload();
+    });
   }
 
   // ── Backup Event Listeners ──
