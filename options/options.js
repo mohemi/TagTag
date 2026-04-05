@@ -73,6 +73,7 @@
   const $backupExportBtn = document.getElementById('backupExportBtn');
   const $backupImportBtn = document.getElementById('backupImportBtn');
   const $backupImportFileInput = document.getElementById('backupImportFileInput');
+  const $githubGistToggle = document.getElementById('githubGistToggle');
   const $webdavToggle = document.getElementById('webdavToggle');
   const $webdavConfig = document.getElementById('webdavConfig');
   const $webdavUrl = document.getElementById('webdavUrl');
@@ -2294,6 +2295,11 @@
       importBackup(file);
     }
     $backupImportFileInput.value = '';
+  });
+
+  $githubGistToggle.addEventListener('change', () => {
+    $githubGistToggle.checked = false;
+    showToast(t('githubGistInDevelopment'));
   });
 
   // WebDAV toggle

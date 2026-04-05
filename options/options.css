@@ -170,12 +170,13 @@ body {
 .space-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 7px;
+  padding: 7px 8px;
+  min-height: 26px;
   border-radius: 6px;
   cursor: pointer;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 11px;
   transition:
     background 0.15s,
     color 0.15s;
@@ -201,14 +202,15 @@ body {
 }
 
 .space-item .space-icon {
-  font-size: 14px;
-  width: 20px;
+  font-size: 13px;
+  width: 17px;
   text-align: center;
   flex-shrink: 0;
 }
 
 .space-item .space-name {
   flex: 1;
+  font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -525,9 +527,9 @@ body {
 /* ── Tab Grid ── */
 .tab-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: var(--card-gap);
-  padding: 8px 0;
+  grid-template-columns: repeat(auto-fill, minmax(126px, 1fr));
+  gap: 11px;
+  padding: 7px 0;
 }
 
 .tab-grid.hidden {
@@ -537,17 +539,17 @@ body {
 .tab-card {
   background: var(--bg-card);
   border-radius: var(--card-radius);
-  padding: 10px;
+  padding: 9px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   cursor: pointer;
   transition:
     background 0.15s,
     transform 0.15s;
   text-align: center;
-  min-height: 72px;
+  min-height: 65px;
   position: relative;
 }
 
@@ -557,15 +559,15 @@ body {
 }
 
 .tab-card .tab-favicon {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
+  width: 25px;
+  height: 25px;
+  border-radius: 5px;
   object-fit: contain;
   flex-shrink: 0;
 }
 
 .tab-card .tab-title {
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1.3;
   color: var(--text-primary);
   overflow: hidden;
@@ -584,7 +586,7 @@ body {
   color: var(--text-secondary);
   border: none;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
   display: none;
   align-items: center;
   justify-content: center;
@@ -597,10 +599,10 @@ body {
   bottom: 0;
   left: 0;
   right: 0;
-  padding: 3px 8px;
+  padding: 2px 7px;
   background: none;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 9px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -805,13 +807,13 @@ body {
 .current-tab-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 9px;
+  padding: 9px 11px;
   cursor: pointer;
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: 11px;
   transition: background 0.12s;
-  min-height: 50px;
+  min-height: 45px;
   border-bottom: 1px solid var(--border-color);
   border-radius: 7px;
   position: relative;
@@ -834,9 +836,9 @@ body {
 }
 
 .current-tab-item img {
-  width: 32px;
-  height: 32px;
-  border-radius: 7px;
+  width: 29px;
+  height: 29px;
+  border-radius: 6px;
   flex-shrink: 0;
   object-fit: contain;
   background: var(--bg-card);
@@ -844,6 +846,7 @@ body {
 
 .current-tab-item span {
   flex: 1;
+  font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
@@ -859,9 +862,9 @@ body {
   right: 7px;
   background: none;
   border: none;
-  color: var(--text-muted);
+  color: #d7dcef;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 17px;
   line-height: 1;
   padding: 2px;
   opacity: 0;
@@ -872,10 +875,11 @@ body {
 
 .current-tab-item:hover .tab-close-btn {
   opacity: 1;
+  color: #ffffff;
 }
 
 .current-tab-item .tab-close-btn:hover {
-  color: var(--text-primary);
+  color: #ffffff;
 }
 
 /* ═══ Buttons ═══ */
@@ -1078,6 +1082,9 @@ body {
 
 ::-webkit-scrollbar-track {
   background: transparent;
+  border-top: 37.5vh solid transparent;
+  border-bottom: 37.5vh solid transparent;
+  background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb {
