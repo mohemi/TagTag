@@ -301,6 +301,8 @@ class StorageManager {
       return emojiPattern.test(str);
     };
 
+    const reverseGroups = (groups = []) => [...groups].reverse();
+
     const data = {
       version: Date.now(),
       space_list: backupData.space_list.map(s => ({
@@ -317,7 +319,7 @@ class StorageManager {
       data.spaces[spaceId] = {
         id: spaceData.id,
         name: spaceData.name,
-        groups: (spaceData.groups || []).map(g => ({
+        groups: reverseGroups(spaceData.groups).map(g => ({
           id: g.id,
           name: g.name,
           tabs: (g.tabs || []).map(t => ({
@@ -357,6 +359,8 @@ class StorageManager {
       return emojiPattern.test(str);
     };
 
+    const reverseGroups = (groups = []) => [...groups].reverse();
+
     // Merge space_list - add new spaces, keep existing ones
     const existingSpaceIds = new Set(existingData.space_list.map(s => s.id));
     
@@ -378,7 +382,7 @@ class StorageManager {
         existingData.spaces[spaceId] = {
           id: spaceData.id,
           name: spaceData.name,
-          groups: (spaceData.groups || []).map(g => ({
+          groups: reverseGroups(spaceData.groups).map(g => ({
             id: g.id,
             name: g.name,
             tabs: (g.tabs || []).map(t => ({
@@ -405,10 +409,17 @@ class StorageManager {
 
   static async exportToBackup() {
     const data = await StorageManager.getData();
+    const spaces = Object.fromEntries(
+      Object.entries(data.spaces || {}).map(([spaceId, spaceData]) => {
+        const { displayReverseGroups, ...exportableSpace } = spaceData || {};
+        return [spaceId, exportableSpace];
+      })
+    );
+
     return {
       version: Date.now(),
       space_list: data.space_list,
-      spaces: data.spaces
+      spaces
     };
   }
 

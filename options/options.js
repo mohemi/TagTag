@@ -1098,7 +1098,7 @@
         for (const g of flatGroupsList) totalTabs += g.tabs.filter(tab => tab.url).length;
         let done = 0;
 
-        for (const g of flatGroupsList) {
+        for (const g of [...flatGroupsList].reverse()) {
           const newGroup = {
             id: StorageManager.generateGroupId(),
             name: g.name,
@@ -2141,6 +2141,16 @@
     return;
   }
 
+  function hasMeaningfulBackupData(backupData) {
+    if (!backupData) return false;
+    if ((backupData.space_list || []).length > 0) return true;
+
+    return Object.values(backupData.spaces || {}).some(space => {
+      if ((space.groups || []).length > 0) return true;
+      return false;
+    });
+  }
+
   async function refreshDataAfterImport() {
     data = await StorageManager.getData();
     await updateBackupStats();
@@ -2187,7 +2197,14 @@
       await probeWebDAVService(webdavSettings);
       await ensureWebDAVDirectory(webdavSettings);
 
-      tempFile = await exportBackupToTempFile();
+      const backupData = await StorageManager.exportToBackup();
+      if (!hasMeaningfulBackupData(backupData)) {
+        console.warn('Skip WebDAV upload because local backup data is empty');
+        if (!silent) showToast(`${t('syncFailed')}: local data is empty`);
+        return;
+      }
+
+      tempFile = JSON.stringify(backupData, null, 2);
       await uploadTempBackupFile(webdavSettings, tempFile);
 
       cleanupTempFile(tempFile);
@@ -2271,6 +2288,8 @@
     chrome.storage.onChanged.addListener((changes, areaName) => {
       if (areaName !== 'local') return;
       if (!changes[StorageManager.KEYS.DATA]) return;
+      const nextData = changes[StorageManager.KEYS.DATA].newValue;
+      if (!hasMeaningfulBackupData(nextData)) return;
       if (!canRunAutoSync()) return;
       scheduleAutoSyncUpload();
     });
@@ -2364,7 +2383,7 @@
       for (const g of groups) totalTabs += (g.tabs || []).length;
       let done = 0;
 
-      for (const g of groups) {
+      for (const g of [...groups].reverse()) {
         const newGroup = {
           id: StorageManager.generateGroupId(),
           name: g.name || t('untitled'),
