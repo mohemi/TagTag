@@ -46,17 +46,21 @@
           <span class="settings-btn-text">Preferences</span>
         </button>
         <!-- Preference popup menu -->
+        <!-- Preference popup menu -->
         <div class="pref-menu" id="prefMenu" hidden>
           <button class="pref-menu-item" data-action="settings">
             <span class="context-menu-icon"><svg viewBox="0 0 16 16" fill="none"><path d="M6.86 1.33h2.28l.35 1.76c.32.13.62.3.9.5l1.7-.57 1.14 1.96-1.35 1.2c.03.18.05.36.05.55s-.02.37-.05.55l1.35 1.2-1.14 1.96-1.7-.57c-.28.2-.58.37-.9.5l-.35 1.76H6.86l-.35-1.76c-.32-.13-.62-.3-.9-.5l-1.7.57-1.14-1.96 1.35-1.2A3.8 3.8 0 014.07 6.7c0-.19.02-.37.05-.55l-1.35-1.2 1.14-1.96 1.7.57c.28-.2.58-.37.9-.5l.35-1.76zM8 5.33a1.4 1.4 0 100 2.8 1.4 1.4 0 000-2.8z" stroke="currentColor" stroke-width="1.2" fill="none" transform="translate(0,1.3)"/></svg></span>
             Settings
+          </button>
+          <button class="pref-menu-item" data-action="backup">
+            <span class="context-menu-icon"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1v10M5 8l3 3 3-3M3 14h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            Backup & Sync
           </button>
           <button class="pref-menu-item" data-action="about">
             <span class="context-menu-icon"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M8 7v4M8 5v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
             About Me
           </button>
         </div>
-      </div>
     </aside>
 
     <!-- Left resize handle -->
@@ -237,6 +241,138 @@
       <div class="about-body" id="aboutBody"></div>
     </div>
   </div>
+
+  <!-- Backup & Sync Overlay -->
+  <div class="settings-overlay" id="backupOverlay" hidden>
+    <div class="settings-panel backup-panel">
+      <div class="settings-header">
+        <h2>Backup & Sync</h2>
+        <button class="btn-icon modal-close" id="backupClose">&times;</button>
+      </div>
+      <div class="backup-body" id="backupBody">
+        <!-- Data Info -->
+        <div class="backup-info">
+          <p class="backup-version">Current Data Version: <span id="backupVersion">-</span>, Last Modified: <span id="backupModified">-</span></p>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="backup-stats">
+          <div class="stat-card">
+            <div class="stat-icon blue">📦</div>
+            <div class="stat-content">
+              <span class="stat-number" id="statSpaces">0</span>
+              <span class="stat-label">Spaces</span>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon green">📁</div>
+            <div class="stat-content">
+              <span class="stat-number" id="statGroups">0</span>
+              <span class="stat-label">Groups</span>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon purple">📄</div>
+            <div class="stat-content">
+              <span class="stat-number" id="statTabs">0</span>
+              <span class="stat-label">Tabs</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Offline Sync -->
+        <div class="backup-section">
+          <h3>Offline Sync</h3>
+          <div class="backup-actions">
+            <button class="btn-secondary" id="backupExportBtn">
+              <svg viewBox="0 0 16 16" fill="none"><path d="M8 10V2M5 5l3-3 3 3M3 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Export Data
+            </button>
+            <button class="btn-secondary" id="backupImportBtn">
+              <svg viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3M3 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Import Data
+            </button>
+          </div>
+        </div>
+
+        <!-- Remote Sync -->
+        <div class="backup-section">
+          <h3>Remote Sync</h3>
+          
+          <!-- GitHub Gist Sync -->
+          <div class="sync-option">
+            <div class="sync-header">
+              <div class="sync-title">
+                <span>GitHub Gist Sync</span>
+                <span class="badge beta">Beta</span>
+              </div>
+              <label class="settings-toggle">
+                <input type="checkbox" id="githubGistToggle">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- WebDAV Sync -->
+          <div class="sync-option">
+            <div class="sync-header">
+              <div class="sync-title">
+                <span>WebDAV Sync</span>
+                <span class="badge beta">Beta</span>
+                <span class="badge feature">👉 Jianguoyun WebDAV</span>
+              </div>
+              <label class="settings-toggle">
+                <input type="checkbox" id="webdavToggle">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="sync-config" id="webdavConfig">
+              <div class="sync-field">
+                <label>WebDAV URL</label>
+                <input type="text" id="webdavUrl" placeholder="https://dav.jianguoyun.com/dav/" value="https://dav.jianguoyun.com/dav/">
+              </div>
+              <div class="sync-field">
+                <label>WebDAV Username</label>
+                <input type="text" id="webdavUsername" placeholder="your@email.com">
+              </div>
+              <div class="sync-field">
+                <label>WebDAV Password</label>
+                <div class="password-input">
+                  <input type="password" id="webdavPassword" placeholder="Application password">
+                  <button class="btn-icon toggle-password" id="toggleWebdavPassword">
+                    <svg viewBox="0 0 16 16" fill="none"><path d="M8 3C4 3 1.5 6 1.5 8S4 13 8 13s6.5-3 6.5-5S12 3 8 3z" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/></svg>
+                  </button>
+                </div>
+              </div>
+              <div class="sync-field sync-actions-row">
+                <label>Sync Direction</label>
+                <div class="sync-direction">
+                  <button class="btn-secondary" id="syncUploadBtn">
+                    <svg viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 5l3-3 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    Local to Remote
+                  </button>
+                  <button class="btn-secondary" id="syncDownloadBtn">
+                    <svg viewBox="0 0 16 16" fill="none"><path d="M8 14V6M5 11l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    Remote to Local
+                  </button>
+                </div>
+              </div>
+              <div class="sync-field sync-auto">
+                <label>Auto Sync</label>
+                <label class="settings-toggle">
+                  <input type="checkbox" id="webdavAutoSync">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden file input for backup import -->
+  <input type="file" id="backupImportFileInput" accept=".json" style="display:none" />
 
   <!-- Hidden file input for JSON import -->
   <input type="file" id="jsonFileInput" accept=".json" style="display:none" />

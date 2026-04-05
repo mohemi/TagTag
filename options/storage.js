@@ -1,179 +1,247 @@
-// StorageManager — wraps chrome.storage.local for Spaces, Collections, SavedTabs
+// StorageManager — wraps chrome.storage.local for TagTag data format
+// Data structure matches tagtag_backup.json format
 
 class StorageManager {
   static KEYS = {
-    SPACES: 'tagtag_spaces',
+    DATA: 'tagtag_data',  // Stores {version, space_list, spaces}
     SETTINGS: 'tagtag_settings',
     ACCOUNT: 'tagtag_account',
   };
 
+  // Generate timestamp-based ID for spaces
   static generateId() {
-    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    return Date.now().toString();
+  }
+
+  // Generate UUID for tabs (format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx)
+  static generateUUID() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = Math.random() * 16 | 0;
+      const v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  }
+
+  // Generate group ID with prefix
+  static generateGroupId() {
+    return `group_${Date.now()}`;
+  }
+
+  // ── Data Structure Management ──
+
+  static async getData() {
+    const result = await chrome.storage.local.get(StorageManager.KEYS.DATA);
+    return result[StorageManager.KEYS.DATA] || {
+      version: Date.now(),
+      space_list: [],
+      spaces: {}
+    };
+  }
+
+  static async saveData(data) {
+    data.version = Date.now();
+    await chrome.storage.local.set({ [StorageManager.KEYS.DATA]: data });
   }
 
   // ── Spaces ──
 
   static async getSpaces() {
-    const data = await chrome.storage.local.get(StorageManager.KEYS.SPACES);
-    return data[StorageManager.KEYS.SPACES] || [];
+    const data = await StorageManager.getData();
+    return Object.values(data.spaces);
   }
 
-  static async saveSpaces(spaces) {
-    await chrome.storage.local.set({ [StorageManager.KEYS.SPACES]: spaces });
+  static async getSpaceList() {
+    const data = await StorageManager.getData();
+    return data.space_list;
   }
 
   static async createSpace(name, icon) {
-    const spaces = await StorageManager.getSpaces();
+    const data = await StorageManager.getData();
+    const id = StorageManager.generateId();
+    
     const space = {
-      id: StorageManager.generateId(),
+      id,
       name,
-      icon: icon || '',
-      order: spaces.length,
-      collections: [],
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      groups: [],
+      pins: {}
     };
-    spaces.push(space);
-    await StorageManager.saveSpaces(spaces);
+
+    // Add to spaces map
+    data.spaces[id] = space;
+    
+    // Add to space_list
+    data.space_list.push({
+      id,
+      name,
+      icon: icon || ''
+    });
+
+    await StorageManager.saveData(data);
     return space;
   }
 
   static async updateSpace(spaceId, updates) {
-    const spaces = await StorageManager.getSpaces();
-    const idx = spaces.findIndex(s => s.id === spaceId);
-    if (idx === -1) return null;
-    Object.assign(spaces[idx], updates, { updatedAt: Date.now() });
-    await StorageManager.saveSpaces(spaces);
-    return spaces[idx];
+    const data = await StorageManager.getData();
+    const space = data.spaces[spaceId];
+    if (!space) return null;
+
+    Object.assign(space, updates);
+
+    // Update space_list if name changed
+    if (updates.name) {
+      const listItem = data.space_list.find(s => s.id === spaceId);
+      if (listItem) listItem.name = updates.name;
+    }
+
+    await StorageManager.saveData(data);
+    return space;
   }
 
   static async deleteSpace(spaceId) {
-    let spaces = await StorageManager.getSpaces();
-    spaces = spaces.filter(s => s.id !== spaceId);
-    await StorageManager.saveSpaces(spaces);
+    const data = await StorageManager.getData();
+    delete data.spaces[spaceId];
+    data.space_list = data.space_list.filter(s => s.id !== spaceId);
+    await StorageManager.saveData(data);
   }
 
-  // ── Collections ──
+  static async updateSpaceIcon(spaceId, icon) {
+    const data = await StorageManager.getData();
+    const listItem = data.space_list.find(s => s.id === spaceId);
+    if (listItem) {
+      listItem.icon = icon;
+      await StorageManager.saveData(data);
+    }
+  }
 
-  static async addCollection(spaceId, name) {
-    const spaces = await StorageManager.getSpaces();
-    const space = spaces.find(s => s.id === spaceId);
+  // ── Groups (Collections) ──
+
+  static async addGroup(spaceId, name) {
+    const data = await StorageManager.getData();
+    const space = data.spaces[spaceId];
     if (!space) return null;
-    const collection = {
-      id: StorageManager.generateId(),
-      spaceId,
+
+    const group = {
+      id: StorageManager.generateGroupId(),
       name,
-      icon: '',
-      order: space.collections.length,
-      tabs: [],
-      collapsed: false,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      tabs: []
     };
-    space.collections.unshift(collection);
-    space.updatedAt = Date.now();
-    await StorageManager.saveSpaces(spaces);
-    return collection;
+
+    space.groups.unshift(group);
+    await StorageManager.saveData(data);
+    return group;
   }
 
-  static async updateCollection(spaceId, collectionId, updates) {
-    const spaces = await StorageManager.getSpaces();
-    const space = spaces.find(s => s.id === spaceId);
+  static async updateGroup(spaceId, groupId, updates) {
+    const data = await StorageManager.getData();
+    const space = data.spaces[spaceId];
     if (!space) return null;
-    const col = space.collections.find(c => c.id === collectionId);
-    if (!col) return null;
-    Object.assign(col, updates, { updatedAt: Date.now() });
-    space.updatedAt = Date.now();
-    await StorageManager.saveSpaces(spaces);
-    return col;
+    
+    const group = space.groups.find(g => g.id === groupId);
+    if (!group) return null;
+    
+    Object.assign(group, updates);
+    await StorageManager.saveData(data);
+    return group;
   }
 
-  static async deleteCollection(spaceId, collectionId) {
-    const spaces = await StorageManager.getSpaces();
-    const space = spaces.find(s => s.id === spaceId);
+  static async deleteGroup(spaceId, groupId) {
+    const data = await StorageManager.getData();
+    const space = data.spaces[spaceId];
     if (!space) return;
-    space.collections = space.collections.filter(c => c.id !== collectionId);
-    space.updatedAt = Date.now();
-    await StorageManager.saveSpaces(spaces);
+    
+    space.groups = space.groups.filter(g => g.id !== groupId);
+    await StorageManager.saveData(data);
   }
 
-  // ── Tabs within Collections ──
+  // ── Tabs within Groups ──
 
-  static async addTab(spaceId, collectionId, tabData) {
-    const spaces = await StorageManager.getSpaces();
-    const space = spaces.find(s => s.id === spaceId);
+  static async addTab(spaceId, groupId, tabData) {
+    const data = await StorageManager.getData();
+    const space = data.spaces[spaceId];
     if (!space) return null;
-    const col = space.collections.find(c => c.id === collectionId);
-    if (!col) return null;
+    
+    const group = space.groups.find(g => g.id === groupId);
+    if (!group) return null;
+
     const tab = {
-      id: StorageManager.generateId(),
-      collectionId,
+      id: StorageManager.generateUUID(),
       title: tabData.title || '',
       url: tabData.url || '',
-      favicon: tabData.favicon || '',
-      order: col.tabs.length,
-      pinned: tabData.pinned || false,
-      createdAt: Date.now(),
+      favIconUrl: tabData.favIconUrl || tabData.favicon || '',
+      kind: 'record'
     };
-    col.tabs.push(tab);
-    col.updatedAt = Date.now();
-    space.updatedAt = Date.now();
-    await StorageManager.saveSpaces(spaces);
+
+    group.tabs.push(tab);
+    await StorageManager.saveData(data);
     return tab;
   }
 
-  static async removeTab(spaceId, collectionId, tabId) {
-    const spaces = await StorageManager.getSpaces();
-    const space = spaces.find(s => s.id === spaceId);
+  static async removeTab(spaceId, groupId, tabId) {
+    const data = await StorageManager.getData();
+    const space = data.spaces[spaceId];
     if (!space) return;
-    const col = space.collections.find(c => c.id === collectionId);
-    if (!col) return;
-    col.tabs = col.tabs.filter(t => t.id !== tabId);
-    col.updatedAt = Date.now();
-    space.updatedAt = Date.now();
-    await StorageManager.saveSpaces(spaces);
+    
+    const group = space.groups.find(g => g.id === groupId);
+    if (!group) return;
+    
+    group.tabs = group.tabs.filter(t => t.id !== tabId);
+    await StorageManager.saveData(data);
+  }
+
+  static async updateTab(spaceId, groupId, tabId, updates) {
+    const data = await StorageManager.getData();
+    const space = data.spaces[spaceId];
+    if (!space) return null;
+    
+    const group = space.groups.find(g => g.id === groupId);
+    if (!group) return null;
+    
+    const tab = group.tabs.find(t => t.id === tabId);
+    if (!tab) return null;
+
+    Object.assign(tab, updates);
+    await StorageManager.saveData(data);
+    return tab;
   }
 
   // ── Default Data Seeding ──
 
   static async seedDefaults(spaceName = 'Default', collectionName = 'Collection', defaultIcon = '') {
-    const spaces = await StorageManager.getSpaces();
-    if (spaces.length > 0) return; // already seeded
+    const data = await StorageManager.getData();
+    if (data.space_list.length > 0) return; // already seeded
+
     const spaceId = StorageManager.generateId();
-    const colId = StorageManager.generateId();
+    const groupId = StorageManager.generateGroupId();
+    
     const defaultSpace = {
       id: spaceId,
       name: spaceName,
-      icon: defaultIcon,
-      order: 0,
-      collections: [
+      groups: [
         {
-          id: colId,
-          spaceId,
+          id: groupId,
           name: collectionName,
-          icon: '',
-          order: 0,
           tabs: [
             {
-              id: StorageManager.generateId(),
-              collectionId: colId,
+              id: StorageManager.generateUUID(),
               title: '微博',
               url: 'https://weibo.com',
-              favicon: 'https://www.google.com/s2/favicons?domain=weibo.com&sz=32',
-              order: 0,
-              pinned: false,
-              createdAt: Date.now(),
-            },
-          ],
-          collapsed: false,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        },
+              favIconUrl: 'https://www.google.com/s2/favicons?domain=weibo.com&sz=32',
+              kind: 'record'
+            }
+          ]
+        }
       ],
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      pins: {}
     };
-    await StorageManager.saveSpaces([defaultSpace]);
+
+    data.spaces[spaceId] = defaultSpace;
+    data.space_list.push({
+      id: spaceId,
+      name: spaceName,
+      icon: defaultIcon
+    });
+
+    await StorageManager.saveData(data);
     return [defaultSpace];
   }
 
@@ -213,36 +281,164 @@ class StorageManager {
     await chrome.storage.local.set({ [StorageManager.KEYS.ACCOUNT]: account });
   }
 
+  // ── Import from Backup ──
+
+  static async importFromBackup(backupData) {
+    // Validate backup format
+    if (!backupData.spaces || !backupData.space_list) {
+      throw new Error('Invalid backup format');
+    }
+
+    // Helper to generate random emoji
+    const emojis = ['🪟','📌','📚','⏳','🚀','💡','🎯','🔥','⭐','💻','🎨','🎵','📝','📊','🔧','🌐','📁','🏠','🧪','🎮','📱','🛒','💼','🔍','❤️','🌟','🎬','📸','🍕','☕','🌈','🦄','🐱','🐶','🌺','🍀','🏆','🎁','🔔','💎','🧩','🗂️','📮','🛠️','🔒','🌍','🎓','📐'];
+    const randomEmoji = () => emojis[Math.floor(Math.random() * emojis.length)];
+
+    // Helper to check if string is an emoji
+    const isEmoji = (str) => {
+      if (!str) return false;
+      // Emoji regex pattern
+      const emojiPattern = /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F900}-\u{1F9FF}]|[\u{1F018}-\u{1F270}]|[\u{238C}]|[\u{2B06}]|[\u{2B07}]|[\u{2B05}]|[\u{27A1}]|[\u{2194}-\u{2199}]|[\u{2194}]|[\u{21A9}-\u{21AA}]|[\u{2934}-\u{2935}]|[\u{25AA}-\u{25AB}]|[\u{25FE}-\u{25FF}]|[\u{25FB}-\u{25FC}]|[\u{25FD}]|[\u{3030}]|[\u{303D}]|[\u{3297}]|[\u{3299}]|[\u{FE0F}]|[\u{200D}]|[\u{20E3}]|[\u{E0020}-\u{E007F}]/u;
+      return emojiPattern.test(str);
+    };
+
+    const data = {
+      version: Date.now(),
+      space_list: backupData.space_list.map(s => ({
+        id: s.id,
+        name: s.name,
+        // Assign random emoji if no icon or icon is not an emoji
+        icon: isEmoji(s.icon) ? s.icon : randomEmoji()
+      })),
+      spaces: {}
+    };
+
+    // Convert spaces object
+    for (const [spaceId, spaceData] of Object.entries(backupData.spaces)) {
+      data.spaces[spaceId] = {
+        id: spaceData.id,
+        name: spaceData.name,
+        groups: (spaceData.groups || []).map(g => ({
+          id: g.id,
+          name: g.name,
+          tabs: (g.tabs || []).map(t => ({
+            id: t.id,
+            title: t.title || '',
+            url: t.url || '',
+            favIconUrl: t.favIconUrl || '',
+            kind: t.kind || 'record'
+          }))
+        })),
+        pins: spaceData.pins || {}
+      };
+    }
+
+    await StorageManager.saveData(data);
+    return data;
+  }
+
+  // ── Merge from Backup ──
+
+  static async mergeFromBackup(backupData) {
+    // Validate backup format
+    if (!backupData.spaces || !backupData.space_list) {
+      throw new Error('Invalid backup format');
+    }
+
+    const existingData = await StorageManager.getData();
+    
+    // Helper to generate random emoji
+    const emojis = ['🪟','📌','📚','⏳','🚀','💡','🎯','🔥','⭐','💻','🎨','🎵','📝','📊','🔧','🌐','📁','🏠','🧪','🎮','📱','🛒','💼','🔍','❤️','🌟','🎬','📸','🍕','☕','🌈','🦄','🐱','🐶','🌺','🍀','🏆','🎁','🔔','💎','🧩','🗂️','📮','🛠️','🔒','🌍','🎓','📐'];
+    const randomEmoji = () => emojis[Math.floor(Math.random() * emojis.length)];
+
+    // Helper to check if string is an emoji
+    const isEmoji = (str) => {
+      if (!str) return false;
+      const emojiPattern = /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F900}-\u{1F9FF}]|[\u{1F018}-\u{1F270}]|[\u{238C}]|[\u{2B06}]|[\u{2B07}]|[\u{2B05}]|[\u{27A1}]|[\u{2194}-\u{2199}]|[\u{2194}]|[\u{21A9}-\u{21AA}]|[\u{2934}-\u{2935}]|[\u{25AA}-\u{25AB}]|[\u{25FE}-\u{25FF}]|[\u{25FB}-\u{25FC}]|[\u{25FD}]|[\u{3030}]|[\u{303D}]|[\u{3297}]|[\u{3299}]|[\u{FE0F}]|[\u{200D}]|[\u{20E3}]|[\u{E0020}-\u{E007F}]/u;
+      return emojiPattern.test(str);
+    };
+
+    // Merge space_list - add new spaces, keep existing ones
+    const existingSpaceIds = new Set(existingData.space_list.map(s => s.id));
+    
+    for (const spaceInfo of backupData.space_list) {
+      if (!existingSpaceIds.has(spaceInfo.id)) {
+        // New space - add with random emoji if icon is not an emoji
+        existingData.space_list.push({
+          id: spaceInfo.id,
+          name: spaceInfo.name,
+          icon: isEmoji(spaceInfo.icon) ? spaceInfo.icon : randomEmoji()
+        });
+      }
+    }
+
+    // Merge spaces data
+    for (const [spaceId, spaceData] of Object.entries(backupData.spaces)) {
+      if (!existingData.spaces[spaceId]) {
+        // New space - add it
+        existingData.spaces[spaceId] = {
+          id: spaceData.id,
+          name: spaceData.name,
+          groups: (spaceData.groups || []).map(g => ({
+            id: g.id,
+            name: g.name,
+            tabs: (g.tabs || []).map(t => ({
+              id: t.id,
+              title: t.title || '',
+              url: t.url || '',
+              favIconUrl: t.favIconUrl || '',
+              kind: t.kind || 'record'
+            }))
+          })),
+          pins: spaceData.pins || {}
+        };
+      }
+      // If space exists, we don't merge groups to avoid conflicts
+      // User can manually import specific spaces if needed
+    }
+
+    existingData.version = Date.now();
+    await StorageManager.saveData(existingData);
+    return existingData;
+  }
+
+  // ── Export to Backup ──
+
+  static async exportToBackup() {
+    const data = await StorageManager.getData();
+    return {
+      version: Date.now(),
+      space_list: data.space_list,
+      spaces: data.spaces
+    };
+  }
+
   // ── Bookmark Import ──
 
   static async importBookmarks(spaceId) {
     const tree = await chrome.bookmarks.getTree();
-    const spaces = await StorageManager.getSpaces();
-    const space = spaces.find(s => s.id === spaceId);
+    const data = await StorageManager.getData();
+    const space = data.spaces[spaceId];
     if (!space) return;
 
     function walkFolder(node) {
       if (!node.children) return null;
       const tabs = [];
-      const subCollections = [];
+      const subGroups = [];
 
       for (const child of node.children) {
         if (child.url) {
           tabs.push({
-            id: StorageManager.generateId(),
-            collectionId: '',
+            id: StorageManager.generateUUID(),
             title: child.title || child.url,
             url: child.url,
-            favicon: `https://www.google.com/s2/favicons?domain=${new URL(child.url).hostname}&sz=32`,
-            order: tabs.length,
-            pinned: false,
-            createdAt: Date.now(),
+            favIconUrl: `https://www.google.com/s2/favicons?domain=${new URL(child.url).hostname}&sz=32`,
+            kind: 'record'
           });
         } else if (child.children) {
-          subCollections.push(child);
+          subGroups.push(child);
         }
       }
-      return { tabs, subCollections };
+      return { tabs, subGroups };
     }
 
     const root = tree[0];
@@ -253,55 +449,38 @@ class StorageManager {
       for (const subfolder of folder.children) {
         if (!subfolder.children) {
           if (subfolder.url) {
-            // top-level bookmark — add to a "Bookmarks" collection
-            let col = space.collections.find(c => c.name === folder.title);
-            if (!col) {
-              col = {
-                id: StorageManager.generateId(),
-                spaceId,
+            // top-level bookmark — add to a "Bookmarks" group
+            let group = space.groups.find(g => g.name === folder.title);
+            if (!group) {
+              group = {
+                id: StorageManager.generateGroupId(),
                 name: folder.title,
-                icon: '',
-                order: space.collections.length,
-                tabs: [],
-                collapsed: false,
-                createdAt: Date.now(),
-                updatedAt: Date.now(),
+                tabs: []
               };
-              space.collections.push(col);
+              space.groups.push(group);
             }
-            col.tabs.push({
-              id: StorageManager.generateId(),
-              collectionId: col.id,
+            group.tabs.push({
+              id: StorageManager.generateUUID(),
               title: subfolder.title || subfolder.url,
               url: subfolder.url,
-              favicon: `https://www.google.com/s2/favicons?domain=${new URL(subfolder.url).hostname}&sz=32`,
-              order: col.tabs.length,
-              pinned: false,
-              createdAt: Date.now(),
+              favIconUrl: `https://www.google.com/s2/favicons?domain=${new URL(subfolder.url).hostname}&sz=32`,
+              kind: 'record'
             });
           }
           continue;
         }
         const result = walkFolder(subfolder);
         if (result && result.tabs.length > 0) {
-          const col = {
-            id: StorageManager.generateId(),
-            spaceId,
+          const group = {
+            id: StorageManager.generateGroupId(),
             name: subfolder.title || 'Untitled',
-            icon: '',
-            order: space.collections.length,
-            tabs: result.tabs,
-            collapsed: false,
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
+            tabs: result.tabs
           };
-          col.tabs.forEach(t => t.collectionId = col.id);
-          space.collections.push(col);
+          space.groups.push(group);
         }
       }
     }
 
-    space.updatedAt = Date.now();
-    await StorageManager.saveSpaces(spaces);
+    await StorageManager.saveData(data);
   }
 }

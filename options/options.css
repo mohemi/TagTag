@@ -1,5 +1,7 @@
 /* ═══ Reset & Base ═══ */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
@@ -27,9 +29,12 @@
   --bottombar-height: 48px;
 }
 
-html, body {
+html,
+body {
   height: 100%;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
   font-size: 13px;
   color: var(--text-primary);
   background: var(--bg-primary);
@@ -39,7 +44,9 @@ html, body {
 /* ═══ Layout ═══ */
 .app {
   display: grid;
-  grid-template-columns: var(--sidebar-width) 1px 1fr 1px var(--right-sidebar-width);
+  grid-template-columns: var(--sidebar-width) 1px 1fr 1px var(
+      --right-sidebar-width
+    );
   grid-template-rows: 1fr;
   height: 100vh;
   position: relative;
@@ -55,7 +62,9 @@ html, body {
 }
 
 .app.sidebar-left-collapsed {
-  grid-template-columns: var(--sidebar-collapsed-width) 1px 1fr 1px var(--right-sidebar-width);
+  grid-template-columns: var(--sidebar-collapsed-width) 1px 1fr 1px var(
+      --right-sidebar-width
+    );
 }
 
 .app.sidebar-left-collapsed.sidebar-right-hidden {
@@ -72,7 +81,7 @@ html, body {
 }
 
 .resize-handle::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   bottom: 0;
@@ -167,7 +176,9 @@ html, body {
   cursor: pointer;
   color: var(--text-secondary);
   font-size: 13px;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
   position: relative;
 }
 
@@ -233,7 +244,9 @@ html, body {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .sidebar-left-toggle:hover {
@@ -495,7 +508,9 @@ html, body {
   color: var(--text-muted);
   font-size: 13px;
   margin: 8px 0;
-  transition: border-color 0.15s, color 0.15s;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
 }
 
 .tab-grid-empty.drag-over {
@@ -528,7 +543,9 @@ html, body {
   align-items: center;
   gap: 6px;
   cursor: pointer;
-  transition: background 0.15s, transform 0.15s;
+  transition:
+    background 0.15s,
+    transform 0.15s;
   text-align: center;
   min-height: 72px;
   position: relative;
@@ -719,7 +736,9 @@ html, body {
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .sidebar-right-header .btn-save:hover {
@@ -749,8 +768,10 @@ html, body {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: right 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-              background 0.15s, color 0.15s;
+  transition:
+    right 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    background 0.15s,
+    color 0.15s;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
@@ -844,7 +865,9 @@ html, body {
   line-height: 1;
   padding: 2px;
   opacity: 0;
-  transition: opacity 0.12s, color 0.12s;
+  transition:
+    opacity 0.12s,
+    color 0.12s;
 }
 
 .current-tab-item:hover .tab-close-btn {
@@ -864,7 +887,9 @@ html, body {
   font-size: 18px;
   padding: 4px;
   border-radius: 4px;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1141,17 +1166,29 @@ html, body {
   border-radius: 8px;
   font-size: 13px;
   z-index: 1002;
-  animation: toastIn 0.3s ease, toastOut 0.3s ease 1.7s forwards;
+  animation:
+    toastIn 0.3s ease,
+    toastOut 0.3s ease 1.7s forwards;
 }
 
 @keyframes toastIn {
-  from { opacity: 0; transform: translateX(-50%) translateY(10px); }
-  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
 }
 
 @keyframes toastOut {
-  from { opacity: 1; }
-  to { opacity: 0; }
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
 
 /* ═══ Sidebar Footer (Settings) ═══ */
@@ -1174,7 +1211,9 @@ html, body {
   color: var(--text-secondary);
   font-size: 13px;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .settings-btn:hover {
@@ -1207,7 +1246,7 @@ html, body {
   border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 4px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
   z-index: 100;
 }
 
@@ -1444,11 +1483,13 @@ html, body {
   background: var(--bg-input);
   border: 1px solid var(--border-color);
   border-radius: 12px;
-  transition: background 0.2s, border-color 0.2s;
+  transition:
+    background 0.2s,
+    border-color 0.2s;
 }
 
 .toggle-slider::after {
-  content: '';
+  content: "";
   position: absolute;
   width: 18px;
   height: 18px;
@@ -1456,7 +1497,9 @@ html, body {
   top: 2px;
   background: var(--text-secondary);
   border-radius: 50%;
-  transition: transform 0.2s, background 0.2s;
+  transition:
+    transform 0.2s,
+    background 0.2s;
 }
 
 .settings-toggle input:checked + .toggle-slider {
@@ -1467,4 +1510,299 @@ html, body {
 .settings-toggle input:checked + .toggle-slider::after {
   transform: translateX(20px);
   background: #fff;
+}
+
+/* ═══ Backup & Sync Panel ═══ */
+.backup-panel {
+  max-width: 600px;
+  max-height: 85vh;
+}
+
+.backup-body {
+  padding: 0 24px 24px;
+  overflow-y: auto;
+}
+
+.backup-info {
+  margin-bottom: 20px;
+}
+
+.backup-version {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.backup-version span {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* ── Stats Cards ── */
+.backup-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.stat-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.stat-icon.blue {
+  background: rgba(59, 130, 246, 0.2);
+}
+
+.stat-icon.green {
+  background: rgba(34, 197, 94, 0.2);
+}
+
+.stat-icon.purple {
+  background: rgba(168, 85, 247, 0.2);
+}
+
+.stat-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-number {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* ── Backup Sections ── */
+.backup-section {
+  margin-bottom: 24px;
+}
+
+.backup-section h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.backup-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.backup-actions .btn-secondary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+}
+
+.backup-actions .btn-secondary svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ── Sync Options ── */
+.sync-option {
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.sync-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sync-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.badge.beta {
+  background: rgba(34, 197, 94, 0.2);
+  color: #22c55e;
+}
+
+.badge.feature {
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+}
+
+/* ── Sync Config ── */
+.sync-config {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+  display: none;
+}
+
+.sync-config.active {
+  display: block;
+}
+
+.sync-field {
+  margin-bottom: 16px;
+}
+
+.sync-field:last-child {
+  margin-bottom: 0;
+}
+
+.sync-field label {
+  display: block;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.sync-field input {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.sync-field input:focus {
+  border-color: var(--accent);
+}
+
+.password-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-input input {
+  padding-right: 40px;
+}
+
+.password-input .btn-icon {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.password-input .btn-icon:hover {
+  color: var(--text-primary);
+}
+
+/* ── Sync Direction ── */
+.sync-actions-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sync-direction {
+  display: flex;
+  gap: 10px;
+}
+
+.sync-direction .btn-secondary {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+.sync-direction .btn-secondary svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ── Auto Sync ── */
+.sync-auto {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.sync-auto label:first-child {
+  margin-bottom: 0;
+}
+
+/* ═══ WebDAV Sync Status ═══ */
+.sync-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: var(--bg-card);
+  border-radius: 6px;
+}
+
+.sync-status.success {
+  color: #22c55e;
+}
+
+.sync-status.error {
+  color: var(--danger);
+}
+
+.sync-status.pending {
+  color: var(--text-muted);
+}
+
+.sync-status svg {
+  width: 14px;
+  height: 14px;
 }

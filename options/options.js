@@ -6,13 +6,13 @@
   'use strict';
 
   // ── State ──
-  let spaces = [];
+  let data = { space_list: [], spaces: {} };
   let activeSpaceId = null;
   let browserTabs = [];
   let searchQuery = '';
   let dragSource = null;
   let selectMode = false;
-  let selectedTabs = new Map(); // key: "spaceId:colId:tabId", value: { spaceId, colId, tabId }
+  let selectedTabs = new Map(); // key: "spaceId:groupId:tabId", value: { spaceId, groupId, tabId }
 
   // ── DOM refs ──
   const $spacesList = document.getElementById('spacesList');
@@ -58,6 +58,27 @@
   const $aboutOverlay = document.getElementById('aboutOverlay');
   const $aboutClose = document.getElementById('aboutClose');
   const $aboutBody = document.getElementById('aboutBody');
+  
+  // ── Backup & Sync DOM refs ──
+  const $backupOverlay = document.getElementById('backupOverlay');
+  const $backupClose = document.getElementById('backupClose');
+  const $backupVersion = document.getElementById('backupVersion');
+  const $backupModified = document.getElementById('backupModified');
+  const $statSpaces = document.getElementById('statSpaces');
+  const $statGroups = document.getElementById('statGroups');
+  const $statTabs = document.getElementById('statTabs');
+  const $backupExportBtn = document.getElementById('backupExportBtn');
+  const $backupImportBtn = document.getElementById('backupImportBtn');
+  const $backupImportFileInput = document.getElementById('backupImportFileInput');
+  const $webdavToggle = document.getElementById('webdavToggle');
+  const $webdavConfig = document.getElementById('webdavConfig');
+  const $webdavUrl = document.getElementById('webdavUrl');
+  const $webdavUsername = document.getElementById('webdavUsername');
+  const $webdavPassword = document.getElementById('webdavPassword');
+  const $toggleWebdavPassword = document.getElementById('toggleWebdavPassword');
+  const $syncUploadBtn = document.getElementById('syncUploadBtn');
+  const $syncDownloadBtn = document.getElementById('syncDownloadBtn');
+  const $webdavAutoSync = document.getElementById('webdavAutoSync');
 
   // ── Emoji list ──
   const EMOJIS = [
@@ -78,17 +99,17 @@
   async function init() {
     const settings = await StorageManager.getSettings();
     I18N.setLang(settings.language || 'en');
-    await StorageManager.seedDefaults(t('defaultSpace'), t('defaultCollection'), DEFAULT_FAVICON);
-    spaces = await StorageManager.getSpaces();
+    await StorageManager.seedDefaults(t('defaultSpace'), t('defaultCollection'), randomEmoji());
+    data = await StorageManager.getData();
 
-    activeSpaceId = settings.defaultSpace || (spaces[0] && spaces[0].id);
+    activeSpaceId = settings.defaultSpace || (data.space_list[0] && data.space_list[0].id);
     applyTheme(settings.theme);
     applyLanguage();
 
     await loadBrowserTabs();
 
     renderSpaces();
-    renderCollections();
+    renderGroups();
     renderCurrentTabs();
     bindEvents();
   }
@@ -135,6 +156,7 @@
     $settingsBtn.title = t('preferences');
     // Pref menu items (preserve icons)
     setMenuItemText($prefMenu.querySelector('[data-action="settings"]'), t('settingsTitle'));
+    setMenuItemText($prefMenu.querySelector('[data-action="backup"]'), t('backupSync'));
     setMenuItemText($prefMenu.querySelector('[data-action="about"]'), t('aboutMe'));
 
     // Top bar
@@ -207,58 +229,26 @@
 
   // ═══ Render: Spaces Sidebar ═══
 
-  let spaceDragId = null;
-
   function renderSpaces() {
     $spacesList.innerHTML = '';
-    spaces.forEach(space => {
+    data.space_list.forEach(spaceInfo => {
       const li = document.createElement('li');
-      li.className = 'space-item' + (space.id === activeSpaceId ? ' active' : '');
-      li.dataset.id = space.id;
-      li.draggable = true;
+      li.className = 'space-item' + (spaceInfo.id === activeSpaceId ? ' active' : '');
+      li.dataset.id = spaceInfo.id;
+      
+      const iconDisplay = spaceInfo.icon && !spaceInfo.icon.startsWith('http') 
+        ? spaceInfo.icon 
+        : (spaceInfo.icon ? `<img src="${esc(spaceInfo.icon)}" width="16" height="16" style="vertical-align:middle;border-radius:3px;">` : '•');
+      
       li.innerHTML = `
-        <span class="space-icon">${space.icon && (space.icon.startsWith('http') || space.icon.startsWith('chrome-extension://')) ? `<img src="${esc(space.icon)}" width="16" height="16" style="vertical-align:middle;border-radius:3px;">` : (space.icon || '•')}</span>
-        <span class="space-name">${esc(space.name)}</span>
-        <button class="space-menu-btn" data-id="${space.id}" title="${t('more')}">···</button>
+        <span class="space-icon">${iconDisplay}</span>
+        <span class="space-name">${esc(spaceInfo.name)}</span>
+        <button class="space-menu-btn" data-id="${spaceInfo.id}" title="${t('more')}">···</button>
       `;
+      
       li.addEventListener('click', (e) => {
         if (e.target.closest('.space-menu-btn')) return;
-        switchSpace(space.id);
-      });
-
-      // Drag reorder
-      li.addEventListener('dragstart', (e) => {
-        spaceDragId = space.id;
-        li.classList.add('dragging');
-        e.dataTransfer.effectAllowed = 'move';
-      });
-      li.addEventListener('dragend', () => {
-        spaceDragId = null;
-        li.classList.remove('dragging');
-        document.querySelectorAll('.space-item.drag-over').forEach(el => el.classList.remove('drag-over'));
-      });
-      li.addEventListener('dragover', (e) => {
-        if (!spaceDragId || spaceDragId === space.id) return;
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        li.classList.add('drag-over');
-      });
-      li.addEventListener('dragleave', () => {
-        li.classList.remove('drag-over');
-      });
-      li.addEventListener('drop', async (e) => {
-        e.preventDefault();
-        li.classList.remove('drag-over');
-        if (!spaceDragId || spaceDragId === space.id) return;
-        const fromIdx = spaces.findIndex(s => s.id === spaceDragId);
-        const toIdx = spaces.findIndex(s => s.id === space.id);
-        if (fromIdx === -1 || toIdx === -1) return;
-        const [moved] = spaces.splice(fromIdx, 1);
-        spaces.splice(toIdx, 0, moved);
-        spaces.forEach((s, i) => s.order = i);
-        await StorageManager.saveSpaces(spaces);
-        renderSpaces();
-        spaceDragId = null;
+        switchSpace(spaceInfo.id);
       });
 
       $spacesList.appendChild(li);
@@ -268,17 +258,19 @@
   function switchSpace(spaceId) {
     activeSpaceId = spaceId;
     renderSpaces();
-    renderCollections();
+    renderGroups();
     StorageManager.getSettings().then(s => {
       s.defaultSpace = spaceId;
       StorageManager.saveSettings(s);
     });
   }
 
-  // ═══ Render: Middle Area (Collections / Namespaces) ═══
+  // ═══ Render: Middle Area (Groups) ═══
 
-  function renderCollections() {
-    const space = spaces.find(s => s.id === activeSpaceId);
+  function renderGroups() {
+    const space = data.spaces[activeSpaceId];
+    const spaceInfo = data.space_list.find(s => s.id === activeSpaceId);
+    
     if (!space) {
       $currentSpaceName.textContent = '';
       $collectionsArea.innerHTML = '';
@@ -289,7 +281,7 @@
     $currentSpaceName.textContent = space.name;
     $collectionsArea.innerHTML = '';
 
-    if (!space.collections || space.collections.length === 0) {
+    if (!space.groups || space.groups.length === 0) {
       $collectionsArea.innerHTML = `
         <div class="empty-state">
           <p>${t('emptyState')}</p>
@@ -300,49 +292,34 @@
 
     let totalTabs = 0;
 
-    space.collections.forEach(col => {
+    space.groups.forEach(group => {
       const section = document.createElement('div');
       section.className = 'collection-section';
-      section.dataset.collectionId = col.id;
+      section.dataset.groupId = group.id;
 
       // ── Header ──
       const header = document.createElement('div');
       header.className = 'collection-header';
       header.innerHTML = `
         <span class="collection-drag-handle" title="${t('dragToReorder')}">⠿</span>
-        <span class="collection-toggle ${col.collapsed ? 'collapsed' : ''}">▼</span>
-        <span class="collection-name">${esc(col.name)}</span>
+        <span class="collection-name">${esc(group.name)}</span>
         <div class="collection-actions">
           ${selectMode
             ? `<button class="btn-icon collection-selectall-btn" title="${t('selectAll')}" style="font-size:11px">☐</button>`
             : `<button class="btn-icon collection-move-btn" title="${t('moveCollection')}" style="font-size:12px">⇄</button>`
           }
           <button class="btn-icon collection-rename-btn" title="${t('rename')}" style="font-size:13px">✎</button>
-          <button class="btn-icon collection-delete-btn" title="${t('delete')}" style="font-size:14px">&times;</button>
+          <button class="btn-icon collection-delete-btn" title="${t('delete')}" style="font-size:14px">×</button>
         </div>
       `;
 
-      // Collection reorder via custom mousedown drag
-      const dragHandle = header.querySelector('.collection-drag-handle');
-      dragHandle.addEventListener('mousedown', (e) => {
-        e.preventDefault();
-        startCollectionDrag(e, section, col.id, space);
-      });
-
-      header.addEventListener('click', (e) => {
-        if (e.target.closest('.collection-actions') || e.target.closest('.collection-drag-handle') || e.target.closest('.collection-name')) return;
-        col.collapsed = !col.collapsed;
-        renderCollections();
-        saveAll();
-      });
-
-      // Click collection name to inline rename
+      // Click group name to inline rename
       header.querySelector('.collection-name').addEventListener('click', (e) => {
         e.stopPropagation();
         const nameEl = e.target;
         const input = document.createElement('input');
         input.type = 'text';
-        input.value = col.name;
+        input.value = group.name;
         input.className = 'collection-name-input';
         nameEl.replaceWith(input);
         input.focus();
@@ -350,17 +327,17 @@
 
         function commit() {
           const val = input.value.trim();
-          if (val && val !== col.name) {
-            col.name = val;
+          if (val && val !== group.name) {
+            group.name = val;
             saveAll();
           }
-          renderCollections();
+          renderGroups();
         }
 
         input.addEventListener('blur', commit);
         input.addEventListener('keydown', (ev) => {
           if (ev.key === 'Enter') { input.blur(); }
-          else if (ev.key === 'Escape') { input.value = col.name; input.blur(); }
+          else if (ev.key === 'Escape') { input.value = group.name; input.blur(); }
         });
       });
 
@@ -368,17 +345,17 @@
       if (selectMode) {
         header.querySelector('.collection-selectall-btn').addEventListener('click', (e) => {
           e.stopPropagation();
-          const colTabs = col.tabs || [];
-          const allSelected = colTabs.every(tab => selectedTabs.has(`${space.id}:${col.id}:${tab.id}`));
-          colTabs.forEach(tab => {
-            const key = `${space.id}:${col.id}:${tab.id}`;
+          const groupTabs = group.tabs || [];
+          const allSelected = groupTabs.every(tab => selectedTabs.has(`${activeSpaceId}:${group.id}:${tab.id}`));
+          groupTabs.forEach(tab => {
+            const key = `${activeSpaceId}:${group.id}:${tab.id}`;
             if (allSelected) {
               selectedTabs.delete(key);
             } else {
-              selectedTabs.set(key, { spaceId: space.id, colId: col.id, tabId: tab.id });
+              selectedTabs.set(key, { spaceId: activeSpaceId, groupId: group.id, tabId: tab.id });
             }
           });
-          renderCollections();
+          renderGroups();
           updateSelectActions();
         });
       } else {
@@ -388,76 +365,76 @@
             $collDropMenu.hidden = true;
             return;
           }
-          showSpacePickerMenu(e.target, col.id, space.id);
+          showSpacePickerMenu(e.target, group.id, activeSpaceId);
         });
       }
 
       header.querySelector('.collection-rename-btn').addEventListener('click', () => {
-        showModal(t('modalRenameCollection'), col.name, (newName) => {
+        showModal(t('modalRenameCollection'), group.name, (newName) => {
           if (newName.trim()) {
-            col.name = newName.trim();
-            renderCollections();
+            group.name = newName.trim();
+            renderGroups();
             saveAll();
           }
         });
       });
 
       header.querySelector('.collection-delete-btn').addEventListener('click', () => {
-        if (col.tabs.length > 0 && !confirm(t('confirmDeleteCollection', col.name))) return;
-        space.collections = space.collections.filter(c => c.id !== col.id);
-        renderCollections();
+        if (group.tabs.length > 0 && !confirm(t('confirmDeleteCollection', group.name))) return;
+        space.groups = space.groups.filter(g => g.id !== group.id);
+        renderGroups();
         saveAll();
       });
 
       section.appendChild(header);
 
       // ── Tab Grid ──
-      const tabs = filterTabs(col.tabs);
+      const tabs = filterTabs(group.tabs);
 
       // Empty placeholder (dashed box)
       const emptyPlaceholder = document.createElement('div');
-      emptyPlaceholder.className = 'tab-grid-empty' + (col.collapsed ? ' hidden' : '') + (tabs.length > 0 ? ' hidden' : '');
+      emptyPlaceholder.className = 'tab-grid-empty' + (tabs.length > 0 ? ' hidden' : '');
       emptyPlaceholder.textContent = t('dragTabsHere');
-      emptyPlaceholder.dataset.spaceId = space.id;
-      emptyPlaceholder.dataset.collectionId = col.id;
+      emptyPlaceholder.dataset.spaceId = activeSpaceId;
+      emptyPlaceholder.dataset.groupId = group.id;
 
       // Drop zone for empty placeholder
       emptyPlaceholder.addEventListener('dragover', (e) => {
-        if (dragSource && dragSource.type === 'collection') return;
+        if (dragSource && dragSource.type === 'group') return;
         e.preventDefault();
         emptyPlaceholder.classList.add('drag-over');
       });
       emptyPlaceholder.addEventListener('dragleave', () => { emptyPlaceholder.classList.remove('drag-over'); });
       emptyPlaceholder.addEventListener('drop', (e) => {
-        if (dragSource && dragSource.type === 'collection') return;
+        if (dragSource && dragSource.type === 'group') return;
         e.preventDefault();
         emptyPlaceholder.classList.remove('drag-over');
-        handleDrop(e, space.id, col.id);
+        handleDrop(e, activeSpaceId, group.id);
       });
 
       section.appendChild(emptyPlaceholder);
 
       const grid = document.createElement('div');
-      grid.className = 'tab-grid' + (col.collapsed ? ' hidden' : '') + (tabs.length === 0 ? ' hidden' : '');
-      grid.dataset.spaceId = space.id;
-      grid.dataset.collectionId = col.id;
+      grid.className = 'tab-grid' + (tabs.length === 0 ? ' hidden' : '');
+      grid.dataset.spaceId = activeSpaceId;
+      grid.dataset.groupId = group.id;
 
       // Drop zone for tabs
       grid.addEventListener('dragover', (e) => {
-        if (dragSource && dragSource.type === 'collection') return;
+        if (dragSource && dragSource.type === 'group') return;
         e.preventDefault();
         grid.classList.add('drag-over');
       });
       grid.addEventListener('dragleave', () => { grid.classList.remove('drag-over'); });
       grid.addEventListener('drop', (e) => {
-        if (dragSource && dragSource.type === 'collection') return;
+        if (dragSource && dragSource.type === 'group') return;
         e.preventDefault();
         grid.classList.remove('drag-over');
-        handleDrop(e, space.id, col.id);
+        handleDrop(e, activeSpaceId, group.id);
       });
 
       tabs.forEach(tab => {
-        grid.appendChild(createTabCard(tab, space.id, col.id));
+        grid.appendChild(createTabCard(tab, activeSpaceId, group.id));
       });
 
       totalTabs += tabs.length;
@@ -468,7 +445,7 @@
     $tabCount.textContent = t('tabsCount', totalTabs);
   }
 
-  function createTabCard(tab, spaceId, collectionId) {
+  function createTabCard(tab, spaceId, groupId) {
     const card = document.createElement('div');
     card.className = 'tab-card';
     card.draggable = !selectMode;
@@ -476,8 +453,8 @@
     let domain = '';
     try { domain = new URL(tab.url).hostname.replace('www.', ''); } catch {}
 
-    const faviconUrl = tab.favicon || tab.favIconUrl || DEFAULT_FAVICON;
-    const tabKey = `${spaceId}:${collectionId}:${tab.id}`;
+    const faviconUrl = tab.favIconUrl || tab.favIconUrl || DEFAULT_FAVICON;
+    const tabKey = `${spaceId}:${groupId}:${tab.id}`;
     const isChecked = selectedTabs.has(tabKey);
 
     if (selectMode) {
@@ -510,33 +487,33 @@
         if (isChecked) {
           selectedTabs.delete(tabKey);
         } else {
-          selectedTabs.set(tabKey, { spaceId, colId: collectionId, tabId: tab.id });
+          selectedTabs.set(tabKey, { spaceId, groupId, tabId: tab.id });
         }
-        renderCollections();
+        renderGroups();
         updateSelectActions();
       });
     } else {
-      // Long press (3s) → enter select mode and select this tab
+      // Long press (2s) → enter select mode and select this tab
       let longPressTimer = null;
       card.addEventListener('mousedown', () => {
         longPressTimer = setTimeout(() => {
           longPressTimer = null;
           selectMode = true;
           selectedTabs.clear();
-          selectedTabs.set(tabKey, { spaceId, colId: collectionId, tabId: tab.id });
+          selectedTabs.set(tabKey, { spaceId, groupId, tabId: tab.id });
           $selectTabsBtn.textContent = t('cancelSelect');
           $addCollectionBtn.hidden = true;
           updateSelectActions();
-          renderCollections();
+          renderGroups();
         }, 2000);
       });
       card.addEventListener('mouseup', () => { if (longPressTimer) clearTimeout(longPressTimer); });
       card.addEventListener('mouseleave', () => { if (longPressTimer) clearTimeout(longPressTimer); });
       card.addEventListener('dragstart', () => { if (longPressTimer) clearTimeout(longPressTimer); });
 
-      // Drag card between collections
+      // Drag card between groups
       card.addEventListener('dragstart', (e) => {
-        dragSource = { type: 'card', spaceId, collectionId, tabId: tab.id, tabData: { title: tab.title, url: tab.url, favicon: faviconUrl } };
+        dragSource = { type: 'card', spaceId, groupId, tabId: tab.id, tabData: { title: tab.title, url: tab.url, favIconUrl: faviconUrl } };
         e.dataTransfer.setData('application/json', JSON.stringify(dragSource.tabData));
         e.dataTransfer.effectAllowed = 'move';
         card.classList.add('dragging');
@@ -552,7 +529,7 @@
       // Tab menu (···)
       card.querySelector('.tab-remove').addEventListener('click', (e) => {
         e.stopPropagation();
-        showTabContextMenu(e, spaceId, collectionId, tab);
+        showTabContextMenu(e, spaceId, groupId, tab);
       });
     }
 
@@ -569,12 +546,24 @@
     $selectTabsBtn.textContent = t('selectTabs');
     $addCollectionBtn.hidden = false;
     updateSelectActions();
-    renderCollections();
+    renderGroups();
   }
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && selectMode) {
-      exitSelectMode();
+    if (e.key === 'Escape') {
+      if (selectMode) {
+        exitSelectMode();
+      } else if (!$backupOverlay.hidden) {
+        closeBackup();
+      } else if (!$settingsOverlay.hidden) {
+        closeSettings();
+      } else if (!$aboutOverlay.hidden) {
+        $aboutOverlay.hidden = true;
+      } else if (!$emojiPickerOverlay.hidden) {
+        hideEmojiPicker();
+      } else if (!$modalOverlay.hidden) {
+        hideModal();
+      }
     }
   });
 
@@ -586,14 +575,15 @@
   }
 
   function showSelectMoveMenu(anchorEl) {
-    const otherSpaces = spaces.filter(s => s.id !== activeSpaceId);
+    const otherSpaces = data.space_list.filter(s => s.id !== activeSpaceId);
     if (otherSpaces.length === 0) return;
 
     $collDropMenu.innerHTML = '';
     otherSpaces.forEach(sp => {
       const btn = document.createElement('button');
       btn.className = 'context-menu-item';
-      btn.textContent = sp.icon && !sp.icon.startsWith('http') && !sp.icon.startsWith('chrome-extension://') ? `${sp.icon} ${sp.name}` : sp.name;
+      const spaceInfo = data.space_list.find(s => s.id === sp.id);
+      btn.textContent = spaceInfo?.icon && !spaceInfo.icon.startsWith('http') ? `${spaceInfo.icon} ${sp.name}` : sp.name;
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         showSelectCopyMoveMenu(sp.id);
@@ -638,7 +628,7 @@
 
   async function execSelectCopyMove(action, toSpaceId) {
     if (selectedTabs.size === 0) return;
-    const toSpace = spaces.find(s => s.id === toSpaceId);
+    const toSpace = data.spaces[toSpaceId];
     if (!toSpace) return;
 
     const now = new Date();
@@ -647,48 +637,41 @@
       hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
     }).replace(',', ',');
 
-    const newCol = {
-      id: StorageManager.generateId(),
-      spaceId: toSpaceId,
+    const newGroup = {
+      id: StorageManager.generateGroupId(),
       name: timestamp,
-      icon: '',
-      order: 0,
-      tabs: [],
-      collapsed: false,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      tabs: []
     };
 
     // Collect tabs
     for (const [, info] of selectedTabs) {
-      const srcSpace = spaces.find(s => s.id === info.spaceId);
+      const srcSpace = data.spaces[info.spaceId];
       if (!srcSpace) continue;
-      const srcCol = srcSpace.collections.find(c => c.id === info.colId);
-      if (!srcCol) continue;
-      const srcTab = srcCol.tabs.find(t => t.id === info.tabId);
+      const srcGroup = srcSpace.groups.find(g => g.id === info.groupId);
+      if (!srcGroup) continue;
+      const srcTab = srcGroup.tabs.find(t => t.id === info.tabId);
       if (!srcTab) continue;
       const cloned = JSON.parse(JSON.stringify(srcTab));
-      cloned.id = StorageManager.generateId();
-      cloned.collectionId = newCol.id;
-      newCol.tabs.push(cloned);
+      cloned.id = StorageManager.generateUUID();
+      newGroup.tabs.push(cloned);
     }
 
-    toSpace.collections.unshift(newCol);
-    toSpace.updatedAt = Date.now();
+    toSpace.groups.unshift(newGroup);
 
     // If move, remove originals
     if (action === 'move') {
       for (const [, info] of selectedTabs) {
-        const srcSpace = spaces.find(s => s.id === info.spaceId);
+        const srcSpace = data.spaces[info.spaceId];
         if (!srcSpace) continue;
-        const srcCol = srcSpace.collections.find(c => c.id === info.colId);
-        if (!srcCol) continue;
-        srcCol.tabs = srcCol.tabs.filter(t => t.id !== info.tabId);
-        srcCol.updatedAt = Date.now();
+        const srcGroup = srcSpace.groups.find(g => g.id === info.groupId);
+        if (!srcGroup) continue;
+        srcGroup.tabs = srcGroup.tabs.filter(t => t.id !== info.tabId);
       }
-      showToast(t('movedTo', toSpace.name));
+      const spaceInfo = data.space_list.find(s => s.id === toSpaceId);
+      showToast(t('movedTo', spaceInfo?.name || ''));
     } else {
-      showToast(t('copiedTo', toSpace.name));
+      const spaceInfo = data.space_list.find(s => s.id === toSpaceId);
+      showToast(t('copiedTo', spaceInfo?.name || ''));
     }
 
     selectedTabs.clear();
@@ -697,88 +680,26 @@
     $addCollectionBtn.hidden = false;
     updateSelectActions();
     await saveAll();
-    renderCollections();
+    renderGroups();
   }
 
-  // ═══ Collection Drag Reorder (custom mousedown) ═══
+  // ═══ Space Picker Menu (for Move/Copy group) ═══
 
   const $collDropMenu = document.getElementById('collDropMenu');
 
-  function startCollectionDrag(e, sectionEl, colId, space) {
-    const allSections = Array.from($collectionsArea.querySelectorAll('.collection-section'));
-    const fromIdx = allSections.indexOf(sectionEl);
-    if (fromIdx === -1) return;
-
-    const rect = sectionEl.getBoundingClientRect();
-    const offsetY = e.clientY - rect.top;
-
-    const clone = sectionEl.cloneNode(true);
-    clone.className = 'collection-section collection-drag-clone';
-    clone.style.width = rect.width + 'px';
-    clone.style.left = rect.left + 'px';
-    clone.style.top = (e.clientY - offsetY) + 'px';
-    document.body.appendChild(clone);
-
-    sectionEl.classList.add('collection-drag-placeholder');
-    let currentIdx = fromIdx;
-
-    function onMove(e2) {
-      clone.style.top = (e2.clientY - offsetY) + 'px';
-      for (let i = 0; i < allSections.length; i++) {
-        if (allSections[i] === sectionEl) continue;
-        const r = allSections[i].getBoundingClientRect();
-        const midY = r.top + r.height / 2;
-        if (e2.clientY > r.top && e2.clientY < r.bottom) {
-          if (i !== currentIdx) {
-            if (e2.clientY < midY) {
-              $collectionsArea.insertBefore(sectionEl, allSections[i]);
-            } else {
-              $collectionsArea.insertBefore(sectionEl, allSections[i].nextSibling);
-            }
-            allSections.length = 0;
-            allSections.push(...$collectionsArea.querySelectorAll('.collection-section'));
-            currentIdx = allSections.indexOf(sectionEl);
-          }
-          break;
-        }
-      }
-    }
-
-    function onUp() {
-      clone.remove();
-      sectionEl.classList.remove('collection-drag-placeholder');
-      const newOrder = Array.from($collectionsArea.querySelectorAll('.collection-section')).map(el => el.dataset.collectionId);
-      const reordered = newOrder.map(id => space.collections.find(c => c.id === id)).filter(Boolean);
-      reordered.forEach((c, i) => c.order = i);
-      space.collections = reordered;
-      saveAll();
-      renderCollections();
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    }
-
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  }
-
-  // ═══ Space Picker Menu (for Move/Copy collection) ═══
-
-  function showSpacePickerMenu(anchorEl, colId, fromSpaceId) {
-    // Build a space list menu dynamically
-    const otherSpaces = spaces.filter(s => s.id !== fromSpaceId);
+  function showSpacePickerMenu(anchorEl, groupId, fromSpaceId) {
+    const otherSpaces = data.space_list.filter(s => s.id !== fromSpaceId);
     if (otherSpaces.length === 0) return;
 
-    // Reuse collDropMenu as a two-step menu
-    // Step 1: show list of spaces
     $collDropMenu.innerHTML = '';
     otherSpaces.forEach(sp => {
       const btn = document.createElement('button');
       btn.className = 'context-menu-item';
-      btn.textContent = sp.icon && !sp.icon.startsWith('http') && !sp.icon.startsWith('chrome-extension://') ? `${sp.icon} ${sp.name}` : sp.name;
+      const spaceInfo = data.space_list.find(s => s.id === sp.id);
+      btn.textContent = spaceInfo?.icon && !spaceInfo.icon.startsWith('http') ? `${spaceInfo.icon} ${sp.name}` : sp.name;
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        // Step 2: show copy/move options
-        showCopyMoveMenu(colId, fromSpaceId, sp.id);
+        showCopyMoveMenu(groupId, fromSpaceId, sp.id);
       });
       $collDropMenu.appendChild(btn);
     });
@@ -795,7 +716,7 @@
     });
   }
 
-  function showCopyMoveMenu(colId, fromSpaceId, toSpaceId) {
+  function showCopyMoveMenu(groupId, fromSpaceId, toSpaceId) {
     $collDropMenu.innerHTML = '';
 
     const copyBtn = document.createElement('button');
@@ -803,7 +724,7 @@
     copyBtn.innerHTML = menuIcon('copy') + t('copyCollection');
     copyBtn.addEventListener('click', () => {
       $collDropMenu.hidden = true;
-      execCollectionCopyMove('copy', colId, fromSpaceId, toSpaceId);
+      execGroupCopyMove('copy', groupId, fromSpaceId, toSpaceId);
     });
 
     const moveBtn = document.createElement('button');
@@ -811,46 +732,42 @@
     moveBtn.innerHTML = menuIcon('move') + t('moveCollection');
     moveBtn.addEventListener('click', () => {
       $collDropMenu.hidden = true;
-      execCollectionCopyMove('move', colId, fromSpaceId, toSpaceId);
+      execGroupCopyMove('move', groupId, fromSpaceId, toSpaceId);
     });
 
     $collDropMenu.appendChild(copyBtn);
     $collDropMenu.appendChild(moveBtn);
   }
 
-  async function execCollectionCopyMove(action, colId, fromSpaceId, toSpaceId) {
-    const fromSpace = spaces.find(s => s.id === fromSpaceId);
-    const toSpace = spaces.find(s => s.id === toSpaceId);
+  async function execGroupCopyMove(action, groupId, fromSpaceId, toSpaceId) {
+    const fromSpace = data.spaces[fromSpaceId];
+    const toSpace = data.spaces[toSpaceId];
     if (!fromSpace || !toSpace) return;
 
-    const colIdx = fromSpace.collections.findIndex(c => c.id === colId);
-    if (colIdx === -1) return;
-    const col = fromSpace.collections[colIdx];
+    const groupIdx = fromSpace.groups.findIndex(g => g.id === groupId);
+    if (groupIdx === -1) return;
+    const group = fromSpace.groups[groupIdx];
 
     if (action === 'copy') {
-      const newCol = JSON.parse(JSON.stringify(col));
-      newCol.id = StorageManager.generateId();
-      newCol.spaceId = toSpaceId;
-      newCol.tabs.forEach(tab => {
-        tab.id = StorageManager.generateId();
-        tab.collectionId = newCol.id;
+      const newGroup = JSON.parse(JSON.stringify(group));
+      newGroup.id = StorageManager.generateGroupId();
+      newGroup.tabs.forEach(tab => {
+        tab.id = StorageManager.generateUUID();
       });
-      toSpace.collections.unshift(newCol);
-      toSpace.updatedAt = Date.now();
+      toSpace.groups.unshift(newGroup);
       await saveAll();
-      showToast(t('copiedTo', toSpace.name));
+      const spaceInfo = data.space_list.find(s => s.id === toSpaceId);
+      showToast(t('copiedTo', spaceInfo?.name || ''));
     } else {
-      fromSpace.collections.splice(colIdx, 1);
-      fromSpace.updatedAt = Date.now();
-      col.spaceId = toSpaceId;
-      toSpace.collections.unshift(col);
-      toSpace.updatedAt = Date.now();
+      fromSpace.groups.splice(groupIdx, 1);
+      toSpace.groups.unshift(group);
       await saveAll();
-      showToast(t('movedTo', toSpace.name));
+      const spaceInfo = data.space_list.find(s => s.id === toSpaceId);
+      showToast(t('movedTo', spaceInfo?.name || ''));
     }
 
     renderSpaces();
-    renderCollections();
+    renderGroups();
   }
 
   document.addEventListener('click', (e) => {
@@ -881,10 +798,10 @@
       li.innerHTML = `
         <img src="${esc(favicon)}" alt="">
         <span>${esc(tab.title || tab.url || t('untitled'))}</span>
-        <button class="tab-close-btn" title="${t('closeTab')}">&times;</button>
+        <button class="tab-close-btn" title="${t('closeTab')}">×</button>
       `;
 
-      // Fallback: use default favicon (no inline handler for CSP)
+      // Fallback: use default favicon
       li.querySelector('img').addEventListener('error', function () { this.src = DEFAULT_FAVICON; }, { once: true });
 
       // Close button
@@ -907,7 +824,7 @@
       });
 
       li.addEventListener('dragstart', (e) => {
-        dragSource = { type: 'browser', browserTabId: tab.id, tabData: { title: tab.title || '', url: tab.url || '', favicon: tab.favIconUrl || '' } };
+        dragSource = { type: 'browser', browserTabId: tab.id, tabData: { title: tab.title || '', url: tab.url || '', favIconUrl: tab.favIconUrl || '' } };
         e.dataTransfer.setData('application/json', JSON.stringify(dragSource.tabData));
         e.dataTransfer.effectAllowed = 'copy';
       });
@@ -919,45 +836,45 @@
 
   // ═══ Drop Handler ═══
 
-  function handleDrop(e, targetSpaceId, targetColId) {
-    let data;
-    try { data = JSON.parse(e.dataTransfer.getData('application/json')); } catch { return; }
-    if (!data || !data.url) return;
+  function handleDrop(e, targetSpaceId, targetGroupId) {
+    let dropData;
+    try { dropData = JSON.parse(e.dataTransfer.getData('application/json')); } catch { return; }
+    if (!dropData || !dropData.url) return;
 
-    const space = spaces.find(s => s.id === targetSpaceId);
+    const space = data.spaces[targetSpaceId];
     if (!space) return;
-    const targetCol = space.collections.find(c => c.id === targetColId);
-    if (!targetCol) return;
+    const targetGroup = space.groups.find(g => g.id === targetGroupId);
+    if (!targetGroup) return;
 
     if (dragSource && dragSource.type === 'card') {
-      if (dragSource.collectionId === targetColId) return;
-      if (targetCol.tabs.some(t => t.url === data.url)) { showToast(t('tabAlreadyExists')); return; }
+      if (dragSource.groupId === targetGroupId) return;
+      if (targetGroup.tabs.some(t => t.url === dropData.url)) { showToast(t('tabAlreadyExists')); return; }
 
-      const srcSpace = spaces.find(s => s.id === dragSource.spaceId);
+      const srcSpace = data.spaces[dragSource.spaceId];
       if (srcSpace) {
-        const srcCol = srcSpace.collections.find(c => c.id === dragSource.collectionId);
-        if (srcCol) srcCol.tabs = srcCol.tabs.filter(t => t.id !== dragSource.tabId);
+        const srcGroup = srcSpace.groups.find(g => g.id === dragSource.groupId);
+        if (srcGroup) srcGroup.tabs = srcGroup.tabs.filter(t => t.id !== dragSource.tabId);
       }
 
-      targetCol.tabs.push(makeTab(data, targetColId));
-      renderCollections();
+      targetGroup.tabs.push(makeTab(dropData));
+      renderGroups();
       saveAll();
-      showToast(t('movedTo', targetCol.name));
+      showToast(t('movedTo', targetGroup.name));
       return;
     }
 
-    if (targetCol.tabs.some(t => t.url === data.url)) { showToast(t('tabAlreadyExists')); return; }
+    if (targetGroup.tabs.some(t => t.url === dropData.url)) { showToast(t('tabAlreadyExists')); return; }
 
     // Browser tab drop → show copy/move menu
     const browserTabId = dragSource && dragSource.type === 'browser' ? dragSource.browserTabId : null;
-    showBrowserTabDropMenu(e, data, targetCol, targetColId, browserTabId);
+    showBrowserTabDropMenu(e, dropData, targetGroup, targetGroupId, browserTabId);
   }
 
-  function showBrowserTabDropMenu(e, data, targetCol, targetColId, browserTabId) {
-    // Immediately show the tab in the collection as a preview
-    const previewTab = makeTab(data, targetColId);
-    targetCol.tabs.push(previewTab);
-    renderCollections();
+  function showBrowserTabDropMenu(e, dropData, targetGroup, targetGroupId, browserTabId) {
+    // Immediately show the tab in the group as a preview
+    const previewTab = makeTab(dropData);
+    targetGroup.tabs.push(previewTab);
+    renderGroups();
 
     $collDropMenu.innerHTML = '';
 
@@ -966,9 +883,8 @@
     copyBtn.innerHTML = menuIcon('copy') + t('copyCollection');
     copyBtn.addEventListener('click', async () => {
       $collDropMenu.hidden = true;
-      // Already added, just save
       await saveAll();
-      showToast(t('addedTo', targetCol.name));
+      showToast(t('addedTo', targetGroup.name));
     });
 
     const moveBtn = document.createElement('button');
@@ -976,9 +892,8 @@
     moveBtn.innerHTML = menuIcon('move') + t('moveCollection');
     moveBtn.addEventListener('click', async () => {
       $collDropMenu.hidden = true;
-      // Already added, save and close browser tab
       await saveAll();
-      showToast(t('movedTo', targetCol.name));
+      showToast(t('movedTo', targetGroup.name));
       if (browserTabId) {
         try { await chrome.tabs.remove(browserTabId); } catch {}
       }
@@ -988,12 +903,11 @@
     const cancelHandler = (ev) => {
       if (!$collDropMenu.hidden && !$collDropMenu.contains(ev.target)) {
         $collDropMenu.hidden = true;
-        targetCol.tabs = targetCol.tabs.filter(t => t.id !== previewTab.id);
-        renderCollections();
+        targetGroup.tabs = targetGroup.tabs.filter(t => t.id !== previewTab.id);
+        renderGroups();
         document.removeEventListener('click', cancelHandler);
       }
     };
-    // Defer so this click doesn't fire immediately
     setTimeout(() => document.addEventListener('click', cancelHandler), 0);
 
     $collDropMenu.appendChild(copyBtn);
@@ -1010,16 +924,13 @@
     });
   }
 
-  function makeTab(data, collectionId) {
+  function makeTab(data) {
     return {
-      id: StorageManager.generateId(),
-      collectionId,
+      id: StorageManager.generateUUID(),
       title: data.title || '',
       url: data.url || '',
-      favicon: data.favicon || '',
-      order: 0,
-      pinned: false,
-      createdAt: Date.now(),
+      favIconUrl: data.favIconUrl || data.favicon || '',
+      kind: 'record'
     };
   }
 
@@ -1033,7 +944,6 @@
         $spaceAddMenu.hidden = true;
         return;
       }
-      // Update menu text (preserve icons)
       setMenuItemText($spaceAddMenu.querySelector('[data-action="create-space"]'), t('createSpace'));
       setMenuItemText($spaceAddMenu.querySelector('[data-action="import-space"]'), t('importSpace'));
       setMenuItemText($spaceAddMenu.querySelector('[data-action="import-bookmarks"]'), t('importBookmarks'));
@@ -1043,7 +953,7 @@
       $spaceAddMenu.hidden = false;
     });
 
-    $spaceAddMenu.addEventListener('click', (e) => {
+    $spaceAddMenu.addEventListener('click', async (e) => {
       const action = e.target.dataset.action;
       $spaceAddMenu.hidden = true;
       if (!action) return;
@@ -1051,9 +961,10 @@
       if (action === 'create-space') {
         showModal(t('modalNewSpace'), '', async (name) => {
           if (!name.trim()) return;
-          const sp = await StorageManager.createSpace(name.trim(), randomEmoji());
-          spaces = await StorageManager.getSpaces();
-          switchSpace(sp.id);
+          await StorageManager.createSpace(name.trim(), randomEmoji());
+          data = await StorageManager.getData();
+          const newSpace = data.space_list[data.space_list.length - 1];
+          switchSpace(newSpace.id);
         });
       } else if (action === 'import-space') {
         $spaceJsonFileInput.click();
@@ -1064,51 +975,30 @@
 
     document.addEventListener('click', () => { $spaceAddMenu.hidden = true; });
 
-    // Import Space JSON
+    // Import Space JSON (backup format)
     $spaceJsonFileInput.addEventListener('change', async (e) => {
       const file = e.target.files[0];
       if (!file) return;
       $spaceJsonFileInput.value = '';
+      
       try {
+        $progressTitle.textContent = t('importing');
+        $progressBarFill.style.width = '0%';
+        $progressText.textContent = '0%';
+        $progressOverlay.hidden = false;
+
         const text = await file.text();
-        const json = JSON.parse(text);
-        const spaceName = file.name.replace(/\.json$/i, '');
-        const sp = await StorageManager.createSpace(spaceName, randomEmoji());
-
-        if (json.groups && Array.isArray(json.groups)) {
-          let totalTabs = 0;
-          for (const g of json.groups) totalTabs += (g.tabs || []).length;
-          let done = 0;
-
-          $progressTitle.textContent = t('importing');
-          $progressBarFill.style.width = '0%';
-          $progressText.textContent = '0%';
-          $progressOverlay.hidden = false;
-
-          for (const group of json.groups) {
-            const col = await StorageManager.addCollection(sp.id, group.name || t('untitled'));
-            if (group.tabs && Array.isArray(group.tabs)) {
-              for (const tab of group.tabs) {
-                await StorageManager.addTab(sp.id, col.id, {
-                  title: tab.title || '',
-                  url: tab.url || '',
-                  favicon: tab.favIconUrl || tab.favicon || '',
-                });
-                done++;
-                const pct = totalTabs ? Math.round((done / totalTabs) * 100) : 100;
-                $progressBarFill.style.width = pct + '%';
-                $progressText.textContent = `${done} / ${totalTabs} (${pct}%)`;
-              }
-            }
-            await new Promise(r => setTimeout(r, 0));
-          }
-
-          $progressOverlay.hidden = true;
+        const backupData = JSON.parse(text);
+        
+        await StorageManager.importFromBackup(backupData);
+        data = await StorageManager.getData();
+        
+        $progressOverlay.hidden = true;
+        showToast(t('importedSuccess'));
+        
+        if (data.space_list.length > 0) {
+          switchSpace(data.space_list[0].id);
         }
-
-        spaces = await StorageManager.getSpaces();
-        switchSpace(sp.id);
-        showToast(t('importedCollections', json.groups ? json.groups.length : 0));
       } catch (err) {
         $progressOverlay.hidden = true;
         console.error(err);
@@ -1121,32 +1011,33 @@
       const file = e.target.files[0];
       if (!file) return;
       $bookmarkFileInput.value = '';
+      
       try {
         const text = await file.text();
         const spaceName = file.name.replace(/\.(html?|htm)$/i, '');
-        const sp = await StorageManager.createSpace(spaceName, randomEmoji());
+        await StorageManager.createSpace(spaceName, randomEmoji());
+        data = await StorageManager.getData();
+        const newSpace = data.space_list[data.space_list.length - 1];
 
         // Parse bookmark HTML
         const parser = new DOMParser();
         const doc = parser.parseFromString(text, 'text/html');
         const dlList = doc.querySelectorAll('DL > DT');
 
-        function parseDT(dtEl, spaceId) {
+        function parseDT(dtEl) {
           const h3 = dtEl.querySelector(':scope > H3');
           const dl = dtEl.querySelector(':scope > DL');
           if (h3 && dl) {
-            // It's a folder
             const folderName = h3.textContent.trim() || t('untitled');
             const links = dl.querySelectorAll(':scope > DT > A');
             const subFolders = dl.querySelectorAll(':scope > DT');
 
-            // Collect direct links
             const tabs = [];
             for (const a of links) {
               tabs.push({
                 title: a.textContent.trim(),
                 url: a.getAttribute('HREF') || '',
-                favicon: a.getAttribute('ICON') || '',
+                favIconUrl: a.getAttribute('ICON') || ''
               });
             }
 
@@ -1154,35 +1045,34 @@
               return { name: folderName, tabs };
             }
 
-            // Process sub-folders recursively
-            const collections = [];
+            const groups = [];
             for (const subDt of subFolders) {
-              const result = parseDT(subDt, spaceId);
-              if (result) collections.push(result);
+              const result = parseDT(subDt);
+              if (result) groups.push(result);
             }
-            return collections.length > 0 ? collections : null;
+            return groups.length > 0 ? groups : null;
           }
           return null;
         }
 
-        const collections = [];
+        const groups = [];
         for (const dt of dlList) {
-          const result = parseDT(dt, sp.id);
+          const result = parseDT(dt);
           if (result) {
             if (Array.isArray(result)) {
-              collections.push(...result);
+              groups.push(...result);
             } else {
-              collections.push(result);
+              groups.push(result);
             }
           }
         }
 
         // Flatten nested arrays
-        function flatCollections(arr) {
+        function flatGroups(arr) {
           const flat = [];
           for (const item of arr) {
             if (Array.isArray(item)) {
-              flat.push(...flatCollections(item));
+              flat.push(...flatGroups(item));
             } else if (item && item.name) {
               flat.push(item);
             }
@@ -1190,38 +1080,48 @@
           return flat;
         }
 
-        const flatCols = flatCollections(collections);
+        const flatGroupsList = flatGroups(groups);
 
-        // Show progress overlay
         $progressTitle.textContent = t('importing');
         $progressBarFill.style.width = '0%';
         $progressText.textContent = '0%';
         $progressOverlay.hidden = false;
 
-        // Count total tabs for progress
         let totalTabs = 0;
-        for (const col of flatCols) totalTabs += col.tabs.filter(tab => tab.url).length;
+        for (const g of flatGroupsList) totalTabs += g.tabs.filter(tab => tab.url).length;
         let done = 0;
 
-        for (const col of flatCols) {
-          const newCol = await StorageManager.addCollection(sp.id, col.name);
-          for (const tab of col.tabs) {
+        for (const g of flatGroupsList) {
+          const newGroup = {
+            id: StorageManager.generateGroupId(),
+            name: g.name,
+            tabs: []
+          };
+          for (const tab of g.tabs) {
             if (tab.url) {
-              await StorageManager.addTab(sp.id, newCol.id, tab);
+              newGroup.tabs.push({
+                id: StorageManager.generateUUID(),
+                title: tab.title || '',
+                url: tab.url,
+                favIconUrl: tab.favIconUrl || '',
+                kind: 'record'
+              });
               done++;
-              const pct = Math.round((done / totalTabs) * 100);
-              $progressBarFill.style.width = pct + '%';
-              $progressText.textContent = `${done} / ${totalTabs} (${pct}%)`;
             }
           }
-          // Yield to UI thread periodically
+          if (newGroup.tabs.length > 0) {
+            data.spaces[newSpace.id].groups.push(newGroup);
+          }
+          const pct = Math.round((done / totalTabs) * 100);
+          $progressBarFill.style.width = pct + '%';
+          $progressText.textContent = `${done} / ${totalTabs} (${pct}%)`;
           await new Promise(r => setTimeout(r, 0));
         }
 
+        await StorageManager.saveData(data);
         $progressOverlay.hidden = true;
-        spaces = await StorageManager.getSpaces();
-        switchSpace(sp.id);
-        showToast(t('importedCollections', flatCols.length));
+        switchSpace(newSpace.id);
+        showToast(t('importedCollections', flatGroupsList.length));
       } catch (err) {
         $progressOverlay.hidden = true;
         console.error(err);
@@ -1238,9 +1138,9 @@
       }).replace(',', ',');
       showModal(t('modalNewCollection'), timestamp, async (name) => {
         if (!name.trim()) return;
-        await StorageManager.addCollection(activeSpaceId, name.trim());
-        spaces = await StorageManager.getSpaces();
-        renderCollections();
+        await StorageManager.addGroup(activeSpaceId, name.trim());
+        data = await StorageManager.getData();
+        renderGroups();
       });
     });
 
@@ -1254,64 +1154,60 @@
         $selectTabsBtn.textContent = t('cancelSelect');
         $addCollectionBtn.hidden = true;
         updateSelectActions();
-        renderCollections();
+        renderGroups();
       }
     });
 
     $selectCreateGroupBtn.addEventListener('click', async () => {
       if (selectedTabs.size === 0) return;
-      const space = spaces.find(s => s.id === activeSpaceId);
+      const space = data.spaces[activeSpaceId];
       if (!space) return;
+      
       const now = new Date();
       const timestamp = now.toLocaleString('en-US', {
         month: '2-digit', day: '2-digit', year: 'numeric',
         hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
       }).replace(',', ',');
-      const newCol = {
-        id: StorageManager.generateId(),
-        spaceId: space.id,
+      
+      const newGroup = {
+        id: StorageManager.generateGroupId(),
         name: timestamp,
-        icon: '',
-        order: 0,
-        tabs: [],
-        collapsed: false,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
+        tabs: []
       };
-      // Collect selected tabs and remove from original collections
+      
       for (const [, info] of selectedTabs) {
-        const srcCol = space.collections.find(c => c.id === info.colId);
-        if (!srcCol) continue;
-        const tabIdx = srcCol.tabs.findIndex(t => t.id === info.tabId);
+        const srcGroup = space.groups.find(g => g.id === info.groupId);
+        if (!srcGroup) continue;
+        const tabIdx = srcGroup.tabs.findIndex(t => t.id === info.tabId);
         if (tabIdx === -1) continue;
-        const [tab] = srcCol.tabs.splice(tabIdx, 1);
-        tab.collectionId = newCol.id;
-        tab.id = StorageManager.generateId();
-        newCol.tabs.push(tab);
+        const [tab] = srcGroup.tabs.splice(tabIdx, 1);
+        tab.id = StorageManager.generateUUID();
+        newGroup.tabs.push(tab);
       }
-      space.collections.unshift(newCol);
+      
+      space.groups.unshift(newGroup);
       selectedTabs.clear();
       selectMode = false;
       $selectTabsBtn.textContent = t('selectTabs');
       $addCollectionBtn.hidden = false;
       updateSelectActions();
       await saveAll();
-      renderCollections();
+      renderGroups();
     });
 
     $selectDeleteBtn.addEventListener('click', async () => {
       if (selectedTabs.size === 0) return;
-      const space = spaces.find(s => s.id === activeSpaceId);
+      const space = data.spaces[activeSpaceId];
       if (!space) return;
       for (const [, info] of selectedTabs) {
-        const col = space.collections.find(c => c.id === info.colId);
-        if (!col) continue;
-        col.tabs = col.tabs.filter(t => t.id !== info.tabId);
+        const group = space.groups.find(g => g.id === info.groupId);
+        if (!group) continue;
+        group.tabs = group.tabs.filter(t => t.id !== info.tabId);
       }
       selectedTabs.clear();
       updateSelectActions();
       await saveAll();
-      renderCollections();
+      renderGroups();
     });
 
     $selectMoveBtn.addEventListener('click', (e) => {
@@ -1322,7 +1218,7 @@
 
     $searchInput.addEventListener('input', (e) => {
       searchQuery = e.target.value;
-      renderCollections();
+      renderGroups();
       renderCurrentTabs();
     });
 
@@ -1341,23 +1237,30 @@
       hideContextMenu();
       if (!action || !spaceId) return;
 
-      const space = spaces.find(s => s.id === spaceId);
+      const space = data.spaces[spaceId];
+      const spaceInfo = data.space_list.find(s => s.id === spaceId);
       if (!space) return;
 
       if (action === 'rename') {
         showModal(t('modalEditSpaceName'), space.name, async (newName) => {
           if (newName.trim()) {
             space.name = newName.trim();
+            if (spaceInfo) spaceInfo.name = newName.trim();
             await saveAll();
             renderSpaces();
-            renderCollections();
+            renderGroups();
           }
         });
       } else if (action === 'delete') {
         if (confirm(t('confirmDeleteSpace', space.name))) {
-          spaces = spaces.filter(s => s.id !== spaceId);
-          if (activeSpaceId === spaceId) activeSpaceId = spaces[0] ? spaces[0].id : null;
-          saveAll().then(() => { renderSpaces(); renderCollections(); });
+          delete data.spaces[spaceId];
+          data.space_list = data.space_list.filter(s => s.id !== spaceId);
+          if (activeSpaceId === spaceId) {
+            activeSpaceId = data.space_list[0] ? data.space_list[0].id : null;
+          }
+          await saveAll();
+          renderSpaces();
+          renderGroups();
         }
       } else if (action === 'import-json') {
         pendingImportSpaceId = spaceId;
@@ -1368,38 +1271,35 @@
         $progressText.textContent = '0%';
         $progressOverlay.hidden = false;
 
-        const totalCols = space.collections.length;
-        const groups = [];
-        for (let i = 0; i < totalCols; i++) {
-          const col = space.collections[i];
-          groups.push({
-            name: col.name,
-            tabs: col.tabs.map(tt => ({
-              title: tt.title,
-              url: tt.url,
-              favIconUrl: tt.favicon,
-            })),
-          });
-          const pct = Math.round(((i + 1) / totalCols) * 100);
-          $progressBarFill.style.width = pct + '%';
-          $progressText.textContent = `${i + 1} / ${totalCols} (${pct}%)`;
-          await new Promise(r => setTimeout(r, 0));
-        }
+        const exportData = await StorageManager.exportToBackup();
+        
+        // If only exporting one space, filter it
+        const singleSpaceData = {
+          version: Date.now(),
+          space_list: data.space_list.filter(s => s.id === spaceId),
+          spaces: { [spaceId]: data.spaces[spaceId] }
+        };
 
-        const exportData = { groups };
-        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+        const blob = new Blob([JSON.stringify(singleSpaceData, null, 2)], { type: 'application/json' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         a.download = `${space.name}.json`;
         a.click();
         URL.revokeObjectURL(a.href);
-        $progressOverlay.hidden = true;
-        showToast(t('exportedSuccess'));
+        
+        $progressBarFill.style.width = '100%';
+        $progressText.textContent = '100%';
+        setTimeout(() => {
+          $progressOverlay.hidden = true;
+          showToast(t('exportedSuccess'));
+        }, 500);
       } else if (action === 'change-icon') {
         showEmojiPicker((emoji) => {
-          space.icon = emoji;
-          saveAll();
-          renderSpaces();
+          if (spaceInfo) {
+            spaceInfo.icon = emoji;
+            saveAll();
+            renderSpaces();
+          }
         });
       }
     });
@@ -1426,32 +1326,24 @@
         hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
       }).replace(',', ',');
 
-      await StorageManager.addCollection(activeSpaceId, timestamp);
-      spaces = await StorageManager.getSpaces();
-
-      const space = spaces.find(s => s.id === activeSpaceId);
-      if (!space) return;
-      const col = space.collections[space.collections.length - 1];
-
-      for (const tab of browserTabs) {
-        col.tabs.push({
-          id: StorageManager.generateId(),
-          collectionId: col.id,
+      const newGroup = {
+        id: StorageManager.generateGroupId(),
+        name: timestamp,
+        tabs: browserTabs.map(tab => ({
+          id: StorageManager.generateUUID(),
           title: tab.title || '',
           url: tab.url || '',
-          favicon: tab.favIconUrl || '',
-          order: col.tabs.length,
-          pinned: false,
-          createdAt: Date.now(),
-        });
+          favIconUrl: tab.favIconUrl || '',
+          kind: 'record'
+        }))
+      };
+
+      const space = data.spaces[activeSpaceId];
+      if (space) {
+        space.groups.unshift(newGroup);
+        await saveAll();
+        renderGroups();
       }
-
-      space.collections.pop();
-      space.collections.unshift(col);
-      space.collections.forEach((c, i) => c.order = i);
-
-      await saveAll();
-      renderCollections();
 
       const currentTab = await new Promise(resolve => {
         chrome.tabs.getCurrent((t) => resolve(t));
@@ -1472,13 +1364,12 @@
 
   let tabMenuTarget = null;
 
-  function showTabContextMenu(e, spaceId, collectionId, tab) {
-    // Toggle: if menu is already open, close it
+  function showTabContextMenu(e, spaceId, groupId, tab) {
     if (!$tabContextMenu.hidden) {
       hideTabContextMenu();
       return;
     }
-    tabMenuTarget = { spaceId, collectionId, tab };
+    tabMenuTarget = { spaceId, groupId, tab };
     $tabContextMenu.hidden = false;
     const rect = e.target.getBoundingClientRect();
     $tabContextMenu.style.top = rect.bottom + 4 + 'px';
@@ -1490,25 +1381,24 @@
     tabMenuTarget = null;
   }
 
-  $tabContextMenu.addEventListener('click', (e) => {
+  $tabContextMenu.addEventListener('click', async (e) => {
     const action = e.target.dataset.action;
     const target = tabMenuTarget;
     hideTabContextMenu();
     if (!action || !target) return;
 
-    const { spaceId, collectionId, tab } = target;
-    const sp = spaces.find(s => s.id === target.spaceId);
-    if (!sp) return;
-    const col = sp.collections.find(c => c.id === target.collectionId);
-    if (!col) return;
-    const tt = col.tabs.find(x => x.id === target.tab.id);
+    const space = data.spaces[target.spaceId];
+    if (!space) return;
+    const group = space.groups.find(g => g.id === target.groupId);
+    if (!group) return;
+    const tt = group.tabs.find(x => x.id === target.tab.id);
     if (!tt) return;
 
     if (action === 'tab-rename') {
       showModal(t('modalRenameTab'), tt.title, (newName) => {
         if (newName.trim()) {
           tt.title = newName.trim();
-          renderCollections();
+          renderGroups();
           saveAll();
         }
       });
@@ -1516,13 +1406,13 @@
       showModal(t('modalEditUrl'), tt.url, (newUrl) => {
         if (newUrl.trim()) {
           tt.url = newUrl.trim();
-          renderCollections();
+          renderGroups();
           saveAll();
         }
       });
     } else if (action === 'tab-delete') {
-      col.tabs = col.tabs.filter(x => x.id !== target.tab.id);
-      renderCollections();
+      group.tabs = group.tabs.filter(x => x.id !== target.tab.id);
+      renderGroups();
       saveAll();
     }
   });
@@ -1581,11 +1471,10 @@
     await StorageManager.saveSettings(currentSettings);
     applyTheme(currentSettings.theme);
 
-    // Apply language change
     I18N.setLang(currentSettings.language);
     applyLanguage();
     renderSpaces();
-    renderCollections();
+    renderGroups();
     renderCurrentTabs();
   }
 
@@ -1630,6 +1519,8 @@
     $prefMenu.hidden = true;
     if (action === 'settings') {
       openSettings();
+    } else if (action === 'backup') {
+      openBackup();
     } else if (action === 'about') {
       openAbout();
     }
@@ -1666,11 +1557,483 @@
     if (e.target === $aboutOverlay) $aboutOverlay.hidden = true;
   });
 
+  // ═══ Backup & Sync ═══
+
+  async function openBackup() {
+    await updateBackupStats();
+    await loadWebDAVSettings();
+    applyBackupLanguage();
+    $backupOverlay.hidden = false;
+  }
+
+  // Apply i18n to backup panel
+  function applyBackupLanguage() {
+    // Header
+    const backupHeader = document.querySelector('.backup-panel .settings-header h2');
+    if (backupHeader) backupHeader.textContent = t('backupTitle');
+    
+    // Info text
+    const versionLabel = t('currentDataVersion');
+    const modifiedLabel = t('lastModified');
+    const versionEl = document.querySelector('.backup-version');
+    if (versionEl) {
+      const versionSpan = document.getElementById('backupVersion');
+      const modifiedSpan = document.getElementById('backupModified');
+      versionEl.innerHTML =
+        `${versionLabel}: <span id="backupVersion">${versionSpan ? versionSpan.textContent : '-'}</span>, ${modifiedLabel}: <span id="backupModified">${modifiedSpan ? modifiedSpan.textContent : '-'}</span>`;
+    }
+    
+    // Stats labels
+    const statLabels = document.querySelectorAll('.stat-label');
+    if (statLabels[0]) statLabels[0].textContent = t('spacesCount');
+    if (statLabels[1]) statLabels[1].textContent = t('groupsCount');
+    if (statLabels[2]) statLabels[2].textContent = t('tabsCount');
+    
+    // Offline Sync section
+    const backupSections = document.querySelectorAll('.backup-section h3');
+    if (backupSections[0]) backupSections[0].textContent = t('offlineSync');
+    
+    const exportBtn = document.getElementById('backupExportBtn');
+    if (exportBtn) {
+      exportBtn.innerHTML = `
+        <svg viewBox="0 0 16 16" fill="none"><path d="M8 10V2M5 5l3-3 3 3M3 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        ${t('exportData')}
+      `;
+    }
+    
+    const importBtn = document.getElementById('backupImportBtn');
+    if (importBtn) {
+      importBtn.innerHTML = `
+        <svg viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3M3 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        ${t('importData')}
+      `;
+    }
+    
+    // Remote Sync section
+    if (backupSections[1]) backupSections[1].textContent = t('remoteSync');
+    
+    // GitHub Gist
+    const githubTitle = document.querySelector('.sync-option:first-child .sync-title span:first-child');
+    if (githubTitle) githubTitle.textContent = t('githubGistSync');
+    
+    // WebDAV
+    const webdavTitle = document.querySelector('.sync-option:last-child .sync-title span:first-child');
+    if (webdavTitle) webdavTitle.textContent = t('webdavSync');
+    
+    const webdavFeature = document.querySelector('.badge.feature');
+    if (webdavFeature) webdavFeature.textContent = t('webdavFeature');
+    
+    // WebDAV config labels
+    const syncFields = document.querySelectorAll('.sync-field');
+    if (syncFields[0]) {
+      const label = syncFields[0].querySelector('label');
+      if (label) label.textContent = t('webdavUrl');
+    }
+    if (syncFields[1]) {
+      const label = syncFields[1].querySelector('label');
+      if (label) label.textContent = t('webdavUsername');
+    }
+    if (syncFields[2]) {
+      const label = syncFields[2].querySelector('label');
+      if (label) label.textContent = t('webdavPassword');
+    }
+    if (syncFields[3]) {
+      const label = syncFields[3].querySelector('label');
+      if (label) label.textContent = t('syncDirection');
+    }
+    if (syncFields[4]) {
+      const label = syncFields[4].querySelector('label:first-child');
+      if (label) label.textContent = t('autoSync');
+    }
+    
+    // Sync buttons
+    const uploadBtn = document.getElementById('syncUploadBtn');
+    if (uploadBtn) {
+      uploadBtn.innerHTML = `
+        <svg viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 5l3-3 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        ${t('localToRemote')}
+      `;
+    }
+    
+    const downloadBtn = document.getElementById('syncDownloadBtn');
+    if (downloadBtn) {
+      downloadBtn.innerHTML = `
+        <svg viewBox="0 0 16 16" fill="none"><path d="M8 14V6M5 11l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        ${t('remoteToLocal')}
+      `;
+    }
+  }
+
+  function closeBackup() {
+    $backupOverlay.hidden = true;
+  }
+
+  async function updateBackupStats() {
+    const data = await StorageManager.getData();
+    
+    // Update version and modified time
+    $backupVersion.textContent = data.version || '-';
+    const modifiedDate = data.version ? new Date(data.version).toLocaleString() : '-';
+    $backupModified.textContent = modifiedDate;
+    
+    // Calculate stats
+    let spaceCount = data.space_list?.length || 0;
+    let groupCount = 0;
+    let tabCount = 0;
+    
+    for (const space of Object.values(data.spaces || {})) {
+      const groups = space.groups || [];
+      groupCount += groups.length;
+      for (const group of groups) {
+        tabCount += (group.tabs || []).length;
+      }
+    }
+    
+    $statSpaces.textContent = spaceCount;
+    $statGroups.textContent = groupCount;
+    $statTabs.textContent = tabCount;
+  }
+
+  // ── Export / Import ──
+
+  async function exportBackup() {
+    const backupData = await StorageManager.exportToBackup();
+    const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `tagtag_backup_${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    showToast(t('exportedSuccess'));
+  }
+
+  async function importBackup(file) {
+    try {
+      const text = await file.text();
+      const backupData = JSON.parse(text);
+      
+      // Check if local data exists
+      const localData = await StorageManager.getData();
+      const hasLocalData = localData.space_list && localData.space_list.length > 0;
+      
+      if (hasLocalData) {
+        // Show merge/overwrite dialog
+        showImportModeDialog(async (mode) => {
+          if (mode === 'cancel') return;
+          
+          $progressTitle.textContent = t('importing');
+          $progressBarFill.style.width = '0%';
+          $progressText.textContent = '0%';
+          $progressOverlay.hidden = false;
+          
+          try {
+            if (mode === 'overwrite') {
+              // Overwrite: clear local data and import
+              await StorageManager.importFromBackup(backupData);
+            } else if (mode === 'merge') {
+              // Merge: add imported spaces to existing data
+              await StorageManager.mergeFromBackup(backupData);
+            }
+            
+            data = await StorageManager.getData();
+            
+            $progressOverlay.hidden = true;
+            showToast(t('importedSuccess'));
+            
+            // Refresh UI
+            await updateBackupStats();
+            renderSpaces();
+            renderGroups();
+            
+            if (data.space_list.length > 0) {
+              switchSpace(data.space_list[0].id);
+            }
+          } catch (err) {
+            $progressOverlay.hidden = true;
+            console.error(err);
+            showToast(t('importFailed'));
+          }
+        });
+      } else {
+        // No local data, direct import
+        $progressTitle.textContent = t('importing');
+        $progressBarFill.style.width = '0%';
+        $progressText.textContent = '0%';
+        $progressOverlay.hidden = false;
+        
+        await StorageManager.importFromBackup(backupData);
+        data = await StorageManager.getData();
+        
+        $progressOverlay.hidden = true;
+        showToast(t('importedSuccess'));
+        
+        // Refresh UI
+        await updateBackupStats();
+        renderSpaces();
+        renderGroups();
+        
+        if (data.space_list.length > 0) {
+          switchSpace(data.space_list[0].id);
+        }
+      }
+    } catch (err) {
+      $progressOverlay.hidden = true;
+      console.error(err);
+      showToast(t('importFailed'));
+    }
+  }
+
+  // Show import mode selection dialog
+  function showImportModeDialog(callback) {
+    const dialogHtml = `
+      <div class="modal-overlay" id="importModeDialog" style="z-index: 3000;">
+        <div class="modal" style="width: 420px;">
+          <div class="modal-header">
+            <h3>${t('importModeTitle') || 'Import Options'}</h3>
+            <button class="btn-icon modal-close" id="importModeClose">&times;</button>
+          </div>
+          <div class="modal-body" style="padding: 20px;">
+            <p style="margin-bottom: 20px; color: var(--text-secondary);">${t('importModeDesc') || 'Local data exists. Choose how to import:'}</p>
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+              <button class="btn-secondary" id="importMergeBtn" style="justify-content: flex-start; padding: 12px; text-align: left;">
+                <div style="font-weight: 600; margin-bottom: 4px;">📥 ${t('importMerge') || 'Merge'}</div>
+                <div style="font-size: 12px; color: var(--text-muted);">${t('importMergeDesc') || 'Add imported spaces to existing data'}</div>
+              </button>
+              <button class="btn-secondary" id="importOverwriteBtn" style="justify-content: flex-start; padding: 12px; text-align: left;">
+                <div style="font-weight: 600; margin-bottom: 4px;">🔄 ${t('importOverwrite') || 'Overwrite'}</div>
+                <div style="font-size: 12px; color: var(--text-muted);">${t('importOverwriteDesc') || 'Replace all local data with imported data'}</div>
+              </button>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-secondary" id="importModeCancel">${t('cancel')}</button>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    const dialogEl = document.createElement('div');
+    dialogEl.innerHTML = dialogHtml;
+    document.body.appendChild(dialogEl);
+    
+    const overlay = dialogEl.querySelector('#importModeDialog');
+    
+    function close() {
+      dialogEl.remove();
+    }
+    
+    dialogEl.querySelector('#importModeClose').addEventListener('click', () => {
+      close();
+      callback('cancel');
+    });
+    
+    dialogEl.querySelector('#importModeCancel').addEventListener('click', () => {
+      close();
+      callback('cancel');
+    });
+    
+    dialogEl.querySelector('#importMergeBtn').addEventListener('click', () => {
+      close();
+      callback('merge');
+    });
+    
+    dialogEl.querySelector('#importOverwriteBtn').addEventListener('click', () => {
+      close();
+      callback('overwrite');
+    });
+    
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        close();
+        callback('cancel');
+      }
+    });
+  }
+
+  // ── WebDAV Sync ──
+
+  const WEBDAV_SETTINGS_KEY = 'tagtag_webdav_settings';
+
+  async function loadWebDAVSettings() {
+    const settings = await chrome.storage.local.get(WEBDAV_SETTINGS_KEY);
+    const webdavSettings = settings[WEBDAV_SETTINGS_KEY] || {};
+    
+    $webdavUrl.value = webdavSettings.url || 'https://dav.jianguoyun.com/dav/';
+    $webdavUsername.value = webdavSettings.username || '';
+    $webdavPassword.value = webdavSettings.Password || '';
+    $webdavToggle.checked = webdavSettings.enabled || false;
+    $webdavAutoSync.checked = webdavSettings.autoSync || false;
+    
+    toggleWebDAVConfig(webdavSettings.enabled);
+  }
+
+  async function saveWebDAVSettings() {
+    const settings = {
+      url: $webdavUrl.value,
+      username: $webdavUsername.value,
+      Password: $webdavPassword.value,
+      enabled: $webdavToggle.checked,
+      autoSync: $webdavAutoSync.checked
+    };
+    await chrome.storage.local.set({ [WEBDAV_SETTINGS_KEY]: settings });
+  }
+
+  function toggleWebDAVConfig(enabled) {
+    if (enabled) {
+      $webdavConfig.classList.add('active');
+    } else {
+      $webdavConfig.classList.remove('active');
+    }
+  }
+
+  // WebDAV HTTP Basic Auth
+  function getWebDAVAuthHeader(username, Password) {
+    const credentials = btoa(`${username}:${Password}`);
+    return `Basic ${credentials}`;
+  }
+
+  async function uploadToWebDAV() {
+    const settings = await chrome.storage.local.get(WEBDAV_SETTINGS_KEY);
+    const webdavSettings = settings[WEBDAV_SETTINGS_KEY];
+    
+    if (!webdavSettings || !webdavSettings.enabled) {
+      showToast('Please enable WebDAV sync first');
+      return;
+    }
+
+    try {
+      showToast('Uploading to WebDAV...');
+      
+      const backupData = await StorageManager.exportToBackup();
+      const content = JSON.stringify(backupData, null, 2);
+      
+      const url = webdavSettings.url.endsWith('/') ? webdavSettings.url : webdavSettings.url + '/';
+      const filename = 'tagtag_backup.json';
+      
+      const response = await fetch(url + filename, {
+        method: 'PUT',
+        headers: {
+          'Authorization': getWebDAVAuthHeader(webdavSettings.username, webdavSettings.Password),
+          'Content-Type': 'application/json'
+        },
+        body: content
+      });
+
+      if (response.ok) {
+        showToast('Upload successful!');
+      } else {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+    } catch (err) {
+      console.error('WebDAV upload error:', err);
+      showToast('Upload failed: ' + err.message);
+    }
+  }
+
+  async function downloadFromWebDAV() {
+    const settings = await chrome.storage.local.get(WEBDAV_SETTINGS_KEY);
+    const webdavSettings = settings[WEBDAV_SETTINGS_KEY];
+    
+    if (!webdavSettings || !webdavSettings.enabled) {
+      showToast('Please enable WebDAV sync first');
+      return;
+    }
+
+    try {
+      showToast('Downloading from WebDAV...');
+      
+      const url = webdavSettings.url.endsWith('/') ? webdavSettings.url : webdavSettings.url + '/';
+      const filename = 'tagtag_backup.json';
+      
+      const response = await fetch(url + filename, {
+        method: 'GET',
+        headers: {
+          'Authorization': getWebDAVAuthHeader(webdavSettings.username, webdavSettings.Password)
+        }
+      });
+
+      if (response.ok) {
+        const content = await response.text();
+        const backupData = JSON.parse(content);
+        
+        $progressTitle.textContent = t('importing');
+        $progressBarFill.style.width = '50%';
+        $progressText.textContent = '50%';
+        $progressOverlay.hidden = false;
+        
+        await StorageManager.importFromBackup(backupData);
+        data = await StorageManager.getData();
+        
+        $progressOverlay.hidden = true;
+        showToast('Download and import successful!');
+        
+        // Refresh UI
+        await updateBackupStats();
+        renderSpaces();
+        renderGroups();
+        
+        if (data.space_list.length > 0) {
+          switchSpace(data.space_list[0].id);
+        }
+      } else if (response.status === 404) {
+        showToast('No backup file found on server');
+      } else {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+    } catch (err) {
+      $progressOverlay.hidden = true;
+      console.error('WebDAV download error:', err);
+      showToast('Download failed: ' + err.message);
+    }
+  }
+
+  // ── Backup Event Listeners ──
+
+  $backupClose.addEventListener('click', closeBackup);
+  $backupOverlay.addEventListener('click', (e) => {
+    if (e.target === $backupOverlay) closeBackup();
+  });
+
+  $backupExportBtn.addEventListener('click', exportBackup);
+  
+  $backupImportBtn.addEventListener('click', () => {
+    $backupImportFileInput.click();
+  });
+  
+  $backupImportFileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      importBackup(file);
+    }
+    $backupImportFileInput.value = '';
+  });
+
+  // WebDAV toggle
+  $webdavToggle.addEventListener('change', () => {
+    toggleWebDAVConfig($webdavToggle.checked);
+    saveWebDAVSettings();
+  });
+
+  // WebDAV config inputs
+  [$webdavUrl, $webdavUsername, $webdavPassword, $webdavAutoSync].forEach(el => {
+    el.addEventListener('change', saveWebDAVSettings);
+  });
+
+  // Toggle password visibility
+  $toggleWebdavPassword.addEventListener('click', () => {
+    const type = $webdavPassword.type === 'password' ? 'text' : 'password';
+    $webdavPassword.type = type;
+  });
+
+  // Sync buttons
+  $syncUploadBtn.addEventListener('click', uploadToWebDAV);
+  $syncDownloadBtn.addEventListener('click', downloadFromWebDAV);
+
   ['settingLanguage', 'settingTheme', 'settingOpenTabMode'].forEach(id => {
     document.getElementById(id).addEventListener('change', onSettingChange);
   });
 
-  // ═══ JSON Import ═══
+  // ═══ JSON Import (for existing space) ═══
 
   let pendingImportSpaceId = null;
 
@@ -1680,56 +2043,45 @@
 
     try {
       const text = await file.text();
-      const data = JSON.parse(text);
-      const space = spaces.find(s => s.id === pendingImportSpaceId);
+      const backupData = JSON.parse(text);
+      const space = data.spaces[pendingImportSpaceId];
       if (!space) return;
 
       let groups;
-      if (data.groups && Array.isArray(data.groups)) {
-        groups = data.groups;
-      } else if (data.collections && Array.isArray(data.collections)) {
-        groups = data.collections;
-      } else if (Array.isArray(data)) {
-        groups = [{ name: file.name.replace('.json', ''), tabs: data }];
+      if (backupData.groups && Array.isArray(backupData.groups)) {
+        groups = backupData.groups;
+      } else if (backupData.spaces && backupData.spaces[pendingImportSpaceId]) {
+        // Importing from a full backup, extract groups from this space
+        groups = backupData.spaces[pendingImportSpaceId].groups || [];
+      } else if (Array.isArray(backupData)) {
+        groups = [{ name: file.name.replace('.json', ''), tabs: backupData }];
       } else {
         showToast(t('unsupportedFormat'));
         return;
       }
-
-      groups.reverse();
-
-      let totalTabs = 0;
-      for (const g of groups) totalTabs += (g.tabs || []).length;
-      let done = 0;
 
       $progressTitle.textContent = t('importing');
       $progressBarFill.style.width = '0%';
       $progressText.textContent = '0%';
       $progressOverlay.hidden = false;
 
+      let totalTabs = 0;
+      for (const g of groups) totalTabs += (g.tabs || []).length;
+      let done = 0;
+
       for (const g of groups) {
-        const col = {
-          id: StorageManager.generateId(),
-          spaceId: space.id,
+        const newGroup = {
+          id: StorageManager.generateGroupId(),
           name: g.name || t('untitled'),
-          icon: '',
-          order: space.collections.length,
-          tabs: (g.tabs || []).map((tt, i) => ({
-            id: StorageManager.generateId(),
-            collectionId: '',
+          tabs: (g.tabs || []).map(tt => ({
+            id: StorageManager.generateUUID(),
             title: tt.title || tt.url || '',
             url: tt.url || '',
-            favicon: tt.favIconUrl || tt.favicon || '',
-            order: i,
-            pinned: false,
-            createdAt: Date.now(),
-          })),
-          collapsed: false,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
+            favIconUrl: tt.favIconUrl || tt.favicon || '',
+            kind: 'record'
+          }))
         };
-        col.tabs.forEach(tt => tt.collectionId = col.id);
-        space.collections.push(col);
+        space.groups.push(newGroup);
         done += (g.tabs || []).length;
         const pct = totalTabs ? Math.round((done / totalTabs) * 100) : 100;
         $progressBarFill.style.width = pct + '%';
@@ -1737,9 +2089,7 @@
         await new Promise(r => setTimeout(r, 0));
       }
 
-      space.updatedAt = Date.now();
       await saveAll();
-
       $progressOverlay.hidden = true;
       switchSpace(space.id);
       showToast(t('importedCollections', groups.length));
@@ -1813,12 +2163,17 @@
     } catch { window.open(url, '_blank'); }
   }
 
-  async function saveAll() { await StorageManager.saveSpaces(spaces); }
+  async function saveAll() { 
+    await StorageManager.saveData(data); 
+  }
 
   function filterTabs(tabs) {
-    if (!searchQuery) return tabs;
+    if (!searchQuery) return tabs || [];
     const q = searchQuery.toLowerCase();
-    return tabs.filter(t => t.title.toLowerCase().includes(q) || t.url.toLowerCase().includes(q));
+    return (tabs || []).filter(t => 
+      (t.title || '').toLowerCase().includes(q) || 
+      (t.url || '').toLowerCase().includes(q)
+    );
   }
 
   function esc(str) {
