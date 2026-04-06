@@ -58,6 +58,19 @@
       '--accent': '#6c5ce7',
       '--accent-hover': '#7f70f0',
     },
+    zinc: {
+      '--bg-primary': '#18181B',
+      '--bg-sidebar': '#18181B',
+      '--bg-card': '#27272A',
+      '--bg-hover': '#3F3F46',
+      '--bg-input': '#1F1F23',
+      '--text-primary': '#E4E4E7',
+      '--text-secondary': '#A1A1AA',
+      '--text-muted': '#71717A',
+      '--border-color': '#3F3F46',
+      '--accent': '#A1A1AA',
+      '--accent-hover': '#D4D4D8',
+    },
   };
 
   // ── DOM refs ──
@@ -1534,8 +1547,8 @@
     currentSettings = await StorageManager.getSettings();
     document.getElementById('settingLanguage').value = currentSettings.language || 'en';
     // Mark active theme swatch (migrate old values)
-    let theme = currentSettings.theme || 'violet';
-    if (theme === 'dark' || theme === 'system') theme = 'violet';
+    let theme = currentSettings.theme || 'zinc';
+    if (theme === 'dark' || theme === 'system') theme = 'zinc';
     else if (theme === 'light') theme = 'snow';
     currentSettings.theme = theme;
     $themeSwatches.querySelectorAll('.theme-swatch').forEach(btn => {
@@ -1566,8 +1579,8 @@
   function applyTheme(theme) {
     const root = document.documentElement;
     // Migrate old theme values
-    const migrated = theme === 'dark' || theme === 'system' ? 'violet' : theme === 'light' ? 'snow' : theme;
-    const vars = THEMES[migrated] || THEMES.violet;
+    const migrated = theme === 'dark' || theme === 'system' ? 'zinc' : theme === 'light' ? 'snow' : theme;
+    const vars = THEMES[migrated] || THEMES.zinc;
     for (const [prop, value] of Object.entries(vars)) {
       root.style.setProperty(prop, value);
     }

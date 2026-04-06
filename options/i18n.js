@@ -112,6 +112,7 @@ const I18N = {
       themeMidnight: 'Midnight',
       themeSnow: 'Snow',
       themeViolet: 'Violet',
+      themeZinc: 'Zinc',
       modeRedirect: 'Redirect',
       modeNewTab: 'New Tab',
 
@@ -272,6 +273,7 @@ const I18N = {
       themeMidnight: '黑色',
       themeSnow: '白色',
       themeViolet: '紫色',
+      themeZinc: '锌灰',
       modeRedirect: '当前页跳转',
       modeNewTab: '新标签页',
 
