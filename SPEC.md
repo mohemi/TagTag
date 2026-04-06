@@ -353,6 +353,5 @@ interface UserAccount {
 
 ## 9. 参考信息
 
-- **截图来源**: `TagTag截图.jpg`
 - **Chrome Extension 文档**: https://developer.chrome.com/docs/extensions/
 - **Manifest V3 迁移指南**: https://developer.chrome.com/docs/extensions/develop/migrate

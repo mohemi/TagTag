@@ -577,7 +577,7 @@ body {
 .tab-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(126px, 1fr));
-  grid-auto-rows: 115px;
+  grid-auto-rows: auto;
   gap: 11px;
   padding: 7px 0;
 }
@@ -600,7 +600,7 @@ body {
     background 0.15s,
     transform 0.15s;
   text-align: center;
-  min-height: 115px;
+  min-height: auto;
   position: relative;
 }
 
