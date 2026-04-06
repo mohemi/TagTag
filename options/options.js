@@ -133,6 +133,12 @@
     bookmark: '<svg viewBox="0 0 16 16" fill="none"><path d="M4 2h8v12l-4-3-4 3V2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>',
   };
 
+  const CHEVRON_RIGHT_ICON = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="m9 18 6-6-6-6"></path>
+    </svg>
+  `;
+
   function menuIcon(name) {
     return `<span class="context-menu-icon">${MENU_ICONS[name] || ''}</span>`;
   }
@@ -303,6 +309,7 @@
       const section = document.createElement('div');
       section.className = 'collection-section';
       section.dataset.groupId = group.id;
+      const isCollapsed = Boolean(group.collapsed);
 
       // ── Header ──
       const header = document.createElement('div');
@@ -310,6 +317,7 @@
       header.innerHTML = `
         <span class="collection-drag-handle" title="${t('dragToReorder')}">⠿</span>
         <span class="collection-name">${esc(group.name)}</span>
+        <span class="collection-toggle${isCollapsed ? ' collapsed' : ''}" title="${t('toggleSidebar')}">${CHEVRON_RIGHT_ICON}</span>
         <div class="collection-actions">
           ${selectMode
             ? `<button class="btn-icon collection-selectall-btn" title="${t('selectAll')}" style="font-size:11px">☐ ${t('selectAll')}</button>`
@@ -319,6 +327,15 @@
           <button class="btn-icon collection-delete-btn" title="${t('delete')}" style="font-size:14px">× ${t('delete')}</button>
         </div>
       `;
+
+      header.querySelector('.collection-toggle').addEventListener('click', (e) => {
+        e.stopPropagation();
+        group.collapsed = !group.collapsed;
+        const toggleEl = header.querySelector('.collection-toggle');
+        toggleEl.classList.toggle('collapsed', group.collapsed);
+        content.classList.toggle('collapsed', group.collapsed);
+        saveAll();
+      });
 
       // Click group name to inline rename
       header.querySelector('.collection-name').addEventListener('click', (e) => {
@@ -372,6 +389,7 @@
             $collDropMenu.hidden = true;
             return;
           }
+          hideAllMenus();
           showSpacePickerMenu(e.target, group.id, activeSpaceId);
         });
       }
@@ -394,6 +412,11 @@
       });
 
       section.appendChild(header);
+
+      const content = document.createElement('div');
+      content.className = `collection-content${isCollapsed ? ' collapsed' : ''}`;
+      const contentInner = document.createElement('div');
+      contentInner.className = 'collection-content-inner';
 
       // ── Tab Grid ──
       const tabs = filterTabs(group.tabs);
@@ -419,7 +442,7 @@
         handleDrop(e, activeSpaceId, group.id);
       });
 
-      section.appendChild(emptyPlaceholder);
+      contentInner.appendChild(emptyPlaceholder);
 
       const grid = document.createElement('div');
       grid.className = 'tab-grid' + (tabs.length === 0 ? ' hidden' : '');
@@ -445,7 +468,9 @@
       });
 
       totalTabs += tabs.length;
-      section.appendChild(grid);
+      contentInner.appendChild(grid);
+      content.appendChild(contentInner);
+      section.appendChild(content);
       $collectionsArea.appendChild(section);
     });
 
@@ -947,6 +972,7 @@
     // ── Space Add Menu ──
     $addSpaceBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      hideAllMenus();
       if (!$spaceAddMenu.hidden) {
         $spaceAddMenu.hidden = true;
         return;
@@ -980,7 +1006,7 @@
       }
     });
 
-    document.addEventListener('click', () => { $spaceAddMenu.hidden = true; });
+    document.addEventListener('click', hideAllMenus);
 
     // Import Space JSON (backup format)
     $spaceJsonFileInput.addEventListener('change', async (e) => {
@@ -1311,7 +1337,7 @@
       }
     });
 
-    document.addEventListener('click', () => { hideContextMenu(); hideTabContextMenu(); });
+    document.addEventListener('click', hideAllMenus);
 
     // Right sidebar toggle
     $sidebarToggle.addEventListener('click', () => {
@@ -1372,6 +1398,7 @@
   let tabMenuTarget = null;
 
   function showTabContextMenu(e, spaceId, groupId, tab) {
+    hideAllMenus();
     if (!$tabContextMenu.hidden) {
       hideTabContextMenu();
       return;
@@ -1518,6 +1545,7 @@
 
   $settingsBtn.addEventListener('click', (e) => {
     e.stopPropagation();
+    hideAllMenus();
     $prefMenu.hidden = !$prefMenu.hidden;
   });
 
@@ -1533,7 +1561,7 @@
     }
   });
 
-  document.addEventListener('click', () => { $prefMenu.hidden = true; });
+  document.addEventListener('click', hideAllMenus);
 
   $settingsClose.addEventListener('click', closeSettings);
   $settingsOverlay.addEventListener('click', (e) => {
@@ -1567,6 +1595,7 @@
   // ═══ Backup & Sync ═══
 
   async function openBackup() {
+    hideAllMenus();
     await updateBackupStats();
     await loadWebDAVSettings();
     applyBackupLanguage();
@@ -1767,6 +1796,7 @@
             if (data.space_list.length > 0) {
               switchSpace(data.space_list[0].id);
             }
+            closeBackup();
           } catch (err) {
             $progressOverlay.hidden = true;
             console.error(err);
@@ -1794,6 +1824,7 @@
         if (data.space_list.length > 0) {
           switchSpace(data.space_list[0].id);
         }
+        closeBackup();
       }
     } catch (err) {
       $progressOverlay.hidden = true;
@@ -2446,6 +2477,7 @@
   // ═══ Context Menu ═══
 
   function showContextMenu(e, spaceId) {
+    hideAllMenus();
     $contextMenu.dataset.spaceId = spaceId;
     $contextMenu.hidden = false;
     const rect = e.target.getBoundingClientRect();
@@ -2453,7 +2485,21 @@
     $contextMenu.style.left = rect.left + 'px';
   }
 
-  function hideContextMenu() { $contextMenu.hidden = true; $tabContextMenu.hidden = true; }
+  function hideCollDropMenu() {
+    $collDropMenu.hidden = true;
+  }
+
+  function hideContextMenu() {
+    $contextMenu.hidden = true;
+    $tabContextMenu.hidden = true;
+  }
+
+  function hideAllMenus() {
+    $spaceAddMenu.hidden = true;
+    $prefMenu.hidden = true;
+    hideContextMenu();
+    hideCollDropMenu();
+  }
 
   // ═══ Helpers ═══
 
