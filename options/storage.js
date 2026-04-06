@@ -250,7 +250,7 @@ class StorageManager {
   static async getSettings() {
     const data = await chrome.storage.local.get(StorageManager.KEYS.SETTINGS);
     return data[StorageManager.KEYS.SETTINGS] || {
-      theme: 'dark',
+      theme: 'violet',
       defaultSpace: '',
       gridColumns: 7,
       autoSave: true,

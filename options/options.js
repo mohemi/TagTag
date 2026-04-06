@@ -17,6 +17,49 @@
   let autoSyncInProgress = false;
   let suppressAutoSyncUntil = 0;
 
+  // ── Theme Definitions ──
+  const THEMES = {
+    midnight: {
+      '--bg-primary': '#0a0a0a',
+      '--bg-sidebar': '#0a0a0a',
+      '--bg-card': '#1a1a1a',
+      '--bg-hover': '#2a2a2a',
+      '--bg-input': '#141414',
+      '--text-primary': '#d0d0d0',
+      '--text-secondary': '#808080',
+      '--text-muted': '#505050',
+      '--border-color': '#2a2a2a',
+      '--accent': '#808080',
+      '--accent-hover': '#999999',
+    },
+    snow: {
+      '--bg-primary': '#f0f0f5',
+      '--bg-sidebar': '#f0f0f5',
+      '--bg-card': '#ffffff',
+      '--bg-hover': '#e8e8f0',
+      '--bg-input': '#f5f5fa',
+      '--text-primary': '#1a1a2e',
+      '--text-secondary': '#555555',
+      '--text-muted': '#999999',
+      '--border-color': '#d0d0dd',
+      '--accent': '#4a4a5a',
+      '--accent-hover': '#5a5a6a',
+    },
+    violet: {
+      '--bg-primary': '#0f0f1a',
+      '--bg-sidebar': '#0f0f1a',
+      '--bg-card': '#2a2a3e',
+      '--bg-hover': '#33334d',
+      '--bg-input': '#1e1e32',
+      '--text-primary': '#e0e0e0',
+      '--text-secondary': '#888888',
+      '--text-muted': '#555555',
+      '--border-color': '#3a3a55',
+      '--accent': '#6c5ce7',
+      '--accent-hover': '#7f70f0',
+    },
+  };
+
   // ── DOM refs ──
   const $spacesList = document.getElementById('spacesList');
   const $currentSpaceName = document.getElementById('currentSpaceName');
@@ -58,6 +101,7 @@
   const $prefMenu = document.getElementById('prefMenu');
   const $settingsOverlay = document.getElementById('settingsOverlay');
   const $settingsClose = document.getElementById('settingsClose');
+  const $themeSwatches = document.getElementById('themeSwatches');
   const $aboutOverlay = document.getElementById('aboutOverlay');
   const $aboutClose = document.getElementById('aboutClose');
   const $aboutBody = document.getElementById('aboutBody');
@@ -210,15 +254,16 @@
     // Settings
     document.querySelector('.settings-header h2').textContent = t('settingsTitle');
     const settingsLabels = document.querySelectorAll('.settings-row > label:first-child');
-    if (settingsLabels[0]) settingsLabels[0].textContent = t('language');
-    if (settingsLabels[1]) settingsLabels[1].textContent = t('theme');
+    if (settingsLabels[0]) settingsLabels[0].textContent = t('theme');
+    if (settingsLabels[1]) settingsLabels[1].textContent = t('language');
     if (settingsLabels[2]) settingsLabels[2].textContent = t('openTabMode');
 
-    // Settings select options
-    const themeSelect = document.getElementById('settingTheme');
-    themeSelect.options[0].textContent = t('themeSystem');
-    themeSelect.options[1].textContent = t('themeDark');
-    themeSelect.options[2].textContent = t('themeLight');
+    // Settings: theme swatch titles
+    const swatches = document.querySelectorAll('.theme-swatch');
+    swatches.forEach(btn => {
+      const key = 'theme' + btn.dataset.theme.charAt(0).toUpperCase() + btn.dataset.theme.slice(1);
+      btn.title = t(key) || btn.dataset.theme;
+    });
 
     const modeSelect = document.getElementById('settingOpenTabMode');
     modeSelect.options[0].textContent = t('modeRedirect');
@@ -1488,7 +1533,14 @@
   async function openSettings() {
     currentSettings = await StorageManager.getSettings();
     document.getElementById('settingLanguage').value = currentSettings.language || 'en';
-    document.getElementById('settingTheme').value = currentSettings.theme || 'dark';
+    // Mark active theme swatch (migrate old values)
+    let theme = currentSettings.theme || 'violet';
+    if (theme === 'dark' || theme === 'system') theme = 'violet';
+    else if (theme === 'light') theme = 'snow';
+    currentSettings.theme = theme;
+    $themeSwatches.querySelectorAll('.theme-swatch').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.theme === theme);
+    });
     document.getElementById('settingOpenTabMode').value = currentSettings.openTabMode || 'redirect';
     $settingsOverlay.hidden = false;
   }
@@ -1500,7 +1552,6 @@
   async function onSettingChange() {
     if (!currentSettings) return;
     currentSettings.language = document.getElementById('settingLanguage').value;
-    currentSettings.theme = document.getElementById('settingTheme').value;
     currentSettings.openTabMode = document.getElementById('settingOpenTabMode').value;
     await StorageManager.saveSettings(currentSettings);
     applyTheme(currentSettings.theme);
@@ -1514,30 +1565,11 @@
 
   function applyTheme(theme) {
     const root = document.documentElement;
-    let resolved = theme;
-    if (theme === 'system') {
-      resolved = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-    }
-    if (resolved === 'light') {
-      root.style.setProperty('--bg-primary', '#e4e4ec');
-      root.style.setProperty('--bg-sidebar', '#e4e4ec');
-      root.style.setProperty('--bg-card', '#ffffff');
-      root.style.setProperty('--bg-hover', '#e8e8f0');
-      root.style.setProperty('--bg-input', '#f5f5fa');
-      root.style.setProperty('--text-primary', '#1a1a2e');
-      root.style.setProperty('--text-secondary', '#555555');
-      root.style.setProperty('--text-muted', '#999999');
-      root.style.setProperty('--border-color', '#d0d0dd');
-    } else {
-      root.style.setProperty('--bg-primary', '#0f0f1a');
-      root.style.setProperty('--bg-sidebar', '#0f0f1a');
-      root.style.setProperty('--bg-card', '#2a2a3e');
-      root.style.setProperty('--bg-hover', '#33334d');
-      root.style.setProperty('--bg-input', '#1e1e32');
-      root.style.setProperty('--text-primary', '#e0e0e0');
-      root.style.setProperty('--text-secondary', '#888888');
-      root.style.setProperty('--text-muted', '#555555');
-      root.style.setProperty('--border-color', '#3a3a55');
+    // Migrate old theme values
+    const migrated = theme === 'dark' || theme === 'system' ? 'violet' : theme === 'light' ? 'snow' : theme;
+    const vars = THEMES[migrated] || THEMES.violet;
+    for (const [prop, value] of Object.entries(vars)) {
+      root.style.setProperty(prop, value);
     }
   }
 
@@ -2374,8 +2406,22 @@
   $syncUploadBtn.addEventListener('click', uploadToWebDAV);
   $syncDownloadBtn.addEventListener('click', downloadFromWebDAV);
 
-  ['settingLanguage', 'settingTheme', 'settingOpenTabMode'].forEach(id => {
+  ['settingLanguage', 'settingOpenTabMode'].forEach(id => {
     document.getElementById(id).addEventListener('change', onSettingChange);
+  });
+
+  // Theme swatch click handler
+  $themeSwatches.addEventListener('click', async (e) => {
+    const swatch = e.target.closest('.theme-swatch');
+    if (!swatch || !currentSettings) return;
+    const theme = swatch.dataset.theme;
+    if (!THEMES[theme]) return;
+    $themeSwatches.querySelectorAll('.theme-swatch').forEach(btn => {
+      btn.classList.toggle('active', btn === swatch);
+    });
+    currentSettings.theme = theme;
+    await StorageManager.saveSettings(currentSettings);
+    applyTheme(theme);
   });
 
   // ═══ JSON Import (for existing space) ═══

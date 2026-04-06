@@ -109,6 +109,9 @@ const I18N = {
       themeSystem: 'System',
       themeDark: 'Dark',
       themeLight: 'Light',
+      themeMidnight: 'Midnight',
+      themeSnow: 'Snow',
+      themeViolet: 'Violet',
       modeRedirect: 'Redirect',
       modeNewTab: 'New Tab',
 
@@ -266,6 +269,9 @@ const I18N = {
       themeSystem: '跟随系统',
       themeDark: '深色',
       themeLight: '浅色',
+      themeMidnight: '黑色',
+      themeSnow: '白色',
+      themeViolet: '紫色',
       modeRedirect: '当前页跳转',
       modeNewTab: '新标签页',
 
