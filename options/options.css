@@ -19,7 +19,8 @@
   --accent: #6c5ce7;
   --accent-hover: #7f70f0;
   --danger: #e74c3c;
-  --border-color: #3a3a55;
+  --border-width: 0.5px;
+  --border-color: #272727;
   --card-radius: 8px;
   --card-gap: 12px;
   --sidebar-width: 200px;
@@ -44,7 +45,7 @@ body {
 /* ═══ Layout ═══ */
 .app {
   display: grid;
-  grid-template-columns: var(--sidebar-width) 1px 1fr 1px var(
+  grid-template-columns: var(--sidebar-width) var(--border-width) 1fr var(--border-width) var(
       --right-sidebar-width
     );
   grid-template-rows: 1fr;
@@ -58,17 +59,17 @@ body {
 }
 
 .app.sidebar-right-hidden {
-  grid-template-columns: var(--sidebar-width) 1px 1fr 0px 0px;
+  grid-template-columns: var(--sidebar-width) var(--border-width) 1fr 0px 0px;
 }
 
 .app.sidebar-left-collapsed {
-  grid-template-columns: var(--sidebar-collapsed-width) 1px 1fr 1px var(
+  grid-template-columns: var(--sidebar-collapsed-width) var(--border-width) 1fr var(--border-width) var(
       --right-sidebar-width
     );
 }
 
 .app.sidebar-left-collapsed.sidebar-right-hidden {
-  grid-template-columns: var(--sidebar-collapsed-width) 1px 1fr 0px 0px;
+  grid-template-columns: var(--sidebar-collapsed-width) var(--border-width) 1fr 0px 0px;
 }
 
 /* ── Resize Handles ── */
@@ -239,7 +240,7 @@ body {
   height: 24px;
   border-radius: 50%;
   background: var(--bg-card);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   color: var(--text-secondary);
   cursor: pointer;
   display: flex;
@@ -314,7 +315,7 @@ body {
   align-items: center;
   padding: 0 20px;
   gap: 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   background: var(--bg-primary);
 }
 
@@ -337,7 +338,7 @@ body {
   align-items: center;
   gap: 8px;
   background: var(--bg-input);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   padding: 6px 12px;
 }
@@ -581,7 +582,8 @@ body {
 }
 
 .tab-card {
-  background: var(--bg-card);
+  background: transparent;
+  border: var(--border-width) solid var(--border-color);
   border-radius: var(--card-radius);
   padding: 9px;
   display: flex;
@@ -757,7 +759,7 @@ body {
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.3px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   white-space: nowrap;
   display: flex;
   align-items: center;
@@ -775,7 +777,7 @@ body {
   align-items: center;
   gap: 6px;
   background: none;
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   color: var(--text-secondary);
   padding: 4px 10px;
   border-radius: 6px;
@@ -807,7 +809,7 @@ body {
   height: 24px;
   border-radius: 50%;
   background: var(--bg-card);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   color: var(--text-secondary);
   cursor: pointer;
   display: flex;
@@ -858,7 +860,7 @@ body {
   font-size: 11px;
   transition: background 0.12s;
   min-height: 45px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
   border-radius: 7px;
   position: relative;
 }
@@ -967,7 +969,7 @@ body {
 .btn-secondary {
   background: var(--bg-card);
   color: var(--text-primary);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   padding: 6px 14px;
   border-radius: 6px;
   font-size: 12px;
@@ -1036,7 +1038,7 @@ body {
   width: 100%;
   padding: 8px 12px;
   background: var(--bg-input);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 6px;
   color: var(--text-primary);
   font-size: 13px;
@@ -1058,7 +1060,7 @@ body {
 .context-menu {
   position: fixed;
   background: var(--bg-card);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   padding: 4px;
   width: max-content;
@@ -1245,7 +1247,7 @@ body {
 /* ═══ Sidebar Footer (Settings) ═══ */
 .sidebar-left-footer {
   padding: 8px 10px;
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   flex-shrink: 0;
   position: relative;
 }
@@ -1294,7 +1296,7 @@ body {
   width: max-content;
   min-width: 120px;
   background: var(--bg-card);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   padding: 4px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
@@ -1474,7 +1476,7 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 16px 0;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: var(--border-width) solid var(--border-color);
 }
 
 .settings-row:last-child {
@@ -1489,7 +1491,7 @@ body {
 
 .settings-select {
   background: var(--bg-input);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   color: var(--text-primary);
   font-size: 13px;
@@ -1532,7 +1534,7 @@ body {
   position: absolute;
   inset: 0;
   background: var(--bg-input);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 12px;
   transition:
     background 0.2s,
@@ -1598,7 +1600,7 @@ body {
 
 .stat-card {
   background: var(--bg-input);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 12px;
   padding: 16px;
   display: flex;
@@ -1678,7 +1680,7 @@ body {
 /* ── Sync Options ── */
 .sync-option {
   background: var(--bg-input);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 12px;
   padding: 16px;
   margin-bottom: 12px;
@@ -1721,7 +1723,7 @@ body {
 .sync-config {
   margin-top: 16px;
   padding-top: 16px;
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
   display: none;
 }
 
@@ -1748,7 +1750,7 @@ body {
   width: 100%;
   padding: 10px 12px;
   background: var(--bg-card);
-  border: 1px solid var(--border-color);
+  border: var(--border-width) solid var(--border-color);
   border-radius: 8px;
   color: var(--text-primary);
   font-size: 13px;
@@ -1822,7 +1824,7 @@ body {
   align-items: center;
   justify-content: space-between;
   padding-top: 12px;
-  border-top: 1px solid var(--border-color);
+  border-top: var(--border-width) solid var(--border-color);
 }
 
 .sync-auto label:first-child {
