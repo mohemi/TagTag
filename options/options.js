@@ -1668,7 +1668,7 @@
     const statLabels = document.querySelectorAll('.stat-label');
     if (statLabels[0]) statLabels[0].textContent = t('spacesCount');
     if (statLabels[1]) statLabels[1].textContent = t('groupsCount');
-    if (statLabels[2]) statLabels[2].textContent = t('tabsCount');
+    if (statLabels[2]) statLabels[2].textContent = t('tabsStatCount');
     
     // Offline Sync section
     const backupSections = document.querySelectorAll('.backup-section h3');
