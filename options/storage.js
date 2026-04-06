@@ -251,6 +251,7 @@ class StorageManager {
     const data = await chrome.storage.local.get(StorageManager.KEYS.SETTINGS);
     return data[StorageManager.KEYS.SETTINGS] || {
       theme: 'zinc',
+      tabStyle: 'vertical',
       defaultSpace: '',
       gridColumns: 7,
       autoSave: true,

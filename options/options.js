@@ -12,6 +12,7 @@
   let searchQuery = '';
   let dragSource = null;
   let selectMode = false;
+  let tabStyle = 'vertical';
   let selectedTabs = new Map(); // key: "spaceId:groupId:tabId", value: { spaceId, groupId, tabId }
   let autoSyncTimer = null;
   let autoSyncInProgress = false;
@@ -115,6 +116,7 @@
   const $settingsOverlay = document.getElementById('settingsOverlay');
   const $settingsClose = document.getElementById('settingsClose');
   const $themeSwatches = document.getElementById('themeSwatches');
+  const $tabStyleOptions = document.getElementById('tabStyleOptions');
   const $aboutOverlay = document.getElementById('aboutOverlay');
   const $aboutClose = document.getElementById('aboutClose');
   const $aboutBody = document.getElementById('aboutBody');
@@ -167,6 +169,7 @@
 
     activeSpaceId = settings.defaultSpace || (data.space_list[0] && data.space_list[0].id);
     applyTheme(settings.theme);
+    tabStyle = settings.tabStyle || 'vertical';
     applyLanguage();
 
     await loadBrowserTabs();
@@ -268,8 +271,9 @@
     document.querySelector('.settings-header h2').textContent = t('settingsTitle');
     const settingsLabels = document.querySelectorAll('.settings-row > label:first-child');
     if (settingsLabels[0]) settingsLabels[0].textContent = t('theme');
-    if (settingsLabels[1]) settingsLabels[1].textContent = t('language');
-    if (settingsLabels[2]) settingsLabels[2].textContent = t('openTabMode');
+    if (settingsLabels[1]) settingsLabels[1].textContent = t('tabStyle');
+    if (settingsLabels[2]) settingsLabels[2].textContent = t('language');
+    if (settingsLabels[3]) settingsLabels[3].textContent = t('openTabMode');
 
     // Settings: theme swatch titles
     const swatches = document.querySelectorAll('.theme-swatch');
@@ -503,7 +507,8 @@
       contentInner.appendChild(emptyPlaceholder);
 
       const grid = document.createElement('div');
-      grid.className = 'tab-grid' + (tabs.length === 0 ? ' hidden' : '');
+      const isH = tabStyle === 'horizontal';
+      grid.className = 'tab-grid' + (tabs.length === 0 ? ' hidden' : '') + (isH ? ' horizontal' : '');
       grid.dataset.spaceId = activeSpaceId;
       grid.dataset.groupId = group.id;
 
@@ -537,7 +542,7 @@
 
   function createTabCard(tab, spaceId, groupId) {
     const card = document.createElement('div');
-    card.className = 'tab-card';
+    card.className = 'tab-card' + (tabStyle === 'horizontal' ? ' horizontal' : '');
     card.draggable = !selectMode;
 
     let domain = '';
@@ -1555,6 +1560,11 @@
       btn.classList.toggle('active', btn.dataset.theme === theme);
     });
     document.getElementById('settingOpenTabMode').value = currentSettings.openTabMode || 'redirect';
+    // Mark active tab style option
+    const style = currentSettings.tabStyle || 'vertical';
+    $tabStyleOptions.querySelectorAll('.tab-style-option').forEach(opt => {
+      opt.classList.toggle('active', opt.dataset.style === style);
+    });
     $settingsOverlay.hidden = false;
   }
 
@@ -2435,6 +2445,20 @@
     currentSettings.theme = theme;
     await StorageManager.saveSettings(currentSettings);
     applyTheme(theme);
+  });
+
+  // Tab style click handler
+  $tabStyleOptions.addEventListener('click', async (e) => {
+    const opt = e.target.closest('.tab-style-option');
+    if (!opt || !currentSettings) return;
+    const style = opt.dataset.style;
+    $tabStyleOptions.querySelectorAll('.tab-style-option').forEach(o => {
+      o.classList.toggle('active', o === opt);
+    });
+    currentSettings.tabStyle = style;
+    tabStyle = style;
+    await StorageManager.saveSettings(currentSettings);
+    renderGroups();
   });
 
   // ═══ JSON Import (for existing space) ═══

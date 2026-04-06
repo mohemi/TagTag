@@ -665,6 +665,60 @@ body {
   display: flex;
 }
 
+/* ── Horizontal Tab Style ── */
+.tab-grid.horizontal {
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+}
+
+.tab-card.horizontal {
+  flex-direction: row;
+  align-items: center;
+  text-align: left;
+  min-height: auto;
+  padding: 8px 12px;
+  gap: 10px;
+}
+
+.tab-card.horizontal .tab-favicon {
+  width: 22px;
+  height: 22px;
+}
+
+.tab-card.horizontal .tab-title {
+  flex: 1;
+  min-width: 0;
+  display: block;
+  -webkit-line-clamp: unset;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+}
+
+.tab-card.horizontal .tab-url {
+  position: static;
+  display: none;
+}
+
+.tab-card.horizontal:hover .tab-url {
+  display: none;
+}
+
+.tab-card.horizontal .tab-remove {
+  position: static;
+  display: none;
+  flex-shrink: 0;
+}
+
+.tab-card.horizontal:hover .tab-remove {
+  display: flex;
+}
+
+.tab-card.horizontal .tab-checkbox {
+  position: static;
+  flex-shrink: 0;
+}
+
 /* ── Select Mode ── */
 .tab-checkbox {
   position: absolute;
@@ -1547,6 +1601,37 @@ body {
   width: 100%;
   height: 100%;
   border-radius: 50%;
+}
+
+/* Tab Style Options */
+.tab-style-options {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.tab-style-option {
+  width: 80px;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.tab-style-option:hover {
+  transform: scale(1.05);
+}
+
+.tab-style-option.active {
+  border-color: var(--accent);
+}
+
+.tab-style-option img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 6px;
 }
 
 /* Toggle Switch */
