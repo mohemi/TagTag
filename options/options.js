@@ -367,10 +367,12 @@
 
     let totalTabs = 0;
 
-    space.groups.forEach(group => {
+    space.groups.forEach((group, groupIndex) => {
       const section = document.createElement('div');
       section.className = 'collection-section';
       section.dataset.groupId = group.id;
+      section.dataset.index = groupIndex;
+      section.draggable = true;
       const isCollapsed = Boolean(group.collapsed);
 
       // ── Header ──
@@ -389,6 +391,91 @@
           <button class="btn-icon collection-delete-btn" title="${t('delete')}" style="font-size:14px">× ${t('delete')}</button>
         </div>
       `;
+
+      // ── Collection Drag & Drop ──
+      const dragHandle = header.querySelector('.collection-drag-handle');
+      
+      // Only allow drag from the drag handle
+      dragHandle.addEventListener('mousedown', (e) => {
+        section.draggable = true;
+      });
+      
+      dragHandle.addEventListener('mouseup', (e) => {
+        section.draggable = false;
+      });
+
+      section.addEventListener('dragstart', (e) => {
+        if (e.target !== section && !section.contains(e.target)) return;
+        dragSource = { type: 'group', spaceId: activeSpaceId, groupId: group.id, index: groupIndex };
+        e.dataTransfer.setData('application/json', JSON.stringify({ type: 'group', groupId: group.id, index: groupIndex }));
+        e.dataTransfer.effectAllowed = 'move';
+        section.classList.add('dragging');
+      });
+
+      section.addEventListener('dragend', () => {
+        section.classList.remove('dragging');
+        section.draggable = false;
+        // Clear all drag indicators
+        document.querySelectorAll('.collection-section').forEach(s => {
+          s.classList.remove('drag-above', 'drag-below');
+        });
+        dragSource = null;
+      });
+
+      section.addEventListener('dragover', (e) => {
+        if (!dragSource || dragSource.type !== 'group') return;
+        e.preventDefault();
+        
+        const rect = section.getBoundingClientRect();
+        const midpoint = rect.top + rect.height / 2;
+        
+        section.classList.remove('drag-above', 'drag-below');
+        if (e.clientY < midpoint) {
+          section.classList.add('drag-above');
+        } else {
+          section.classList.add('drag-below');
+        }
+      });
+
+      section.addEventListener('dragleave', (e) => {
+        section.classList.remove('drag-above', 'drag-below');
+      });
+
+      section.addEventListener('drop', (e) => {
+        if (!dragSource || dragSource.type !== 'group') return;
+        e.preventDefault();
+        
+        section.classList.remove('drag-above', 'drag-below');
+        
+        const sourceIndex = dragSource.index;
+        const targetIndex = parseInt(section.dataset.index);
+        
+        if (sourceIndex === targetIndex) return;
+        
+        const rect = section.getBoundingClientRect();
+        const midpoint = rect.top + rect.height / 2;
+        const insertBefore = e.clientY < midpoint;
+        
+        // Reorder groups
+        const groups = space.groups;
+        const [movedGroup] = groups.splice(sourceIndex, 1);
+        
+        let newIndex = targetIndex;
+        if (sourceIndex < targetIndex && !insertBefore) {
+          newIndex = targetIndex;
+        } else if (sourceIndex < targetIndex && insertBefore) {
+          newIndex = targetIndex - 1;
+        } else if (sourceIndex > targetIndex && !insertBefore) {
+          newIndex = targetIndex + 1;
+        } else {
+          newIndex = targetIndex;
+        }
+        
+        groups.splice(newIndex, 0, movedGroup);
+        
+        saveAll();
+        renderGroups();
+      });
 
       header.querySelector('.collection-toggle').addEventListener('click', (e) => {
         e.stopPropagation();
