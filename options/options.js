@@ -312,24 +312,61 @@
 
   function renderSpaces() {
     $spacesList.innerHTML = '';
-    data.space_list.forEach(spaceInfo => {
+    data.space_list.forEach((spaceInfo, index) => {
       const li = document.createElement('li');
       li.className = 'space-item' + (spaceInfo.id === activeSpaceId ? ' active' : '');
       li.dataset.id = spaceInfo.id;
-      
-      const iconDisplay = spaceInfo.icon && !spaceInfo.icon.startsWith('http') 
-        ? spaceInfo.icon 
+      li.dataset.index = index;
+      li.draggable = true;
+
+      const iconDisplay = spaceInfo.icon && !spaceInfo.icon.startsWith('http')
+        ? spaceInfo.icon
         : (spaceInfo.icon ? `<img src="${esc(spaceInfo.icon)}" width="16" height="16" style="vertical-align:middle;border-radius:3px;">` : '•');
-      
+
       li.innerHTML = `
         <span class="space-icon">${iconDisplay}</span>
         <span class="space-name">${esc(spaceInfo.name)}</span>
         <button class="space-menu-btn" data-id="${spaceInfo.id}" title="${t('more')}">···</button>
       `;
-      
+
       li.addEventListener('click', (e) => {
         if (e.target.closest('.space-menu-btn')) return;
         switchSpace(spaceInfo.id);
+      });
+
+      // ── Space Drag & Drop Reorder ──
+      li.addEventListener('dragstart', (e) => {
+        dragSource = { type: 'space', spaceId: spaceInfo.id, index };
+        e.dataTransfer.effectAllowed = 'move';
+        li.classList.add('dragging');
+      });
+      li.addEventListener('dragend', () => {
+        li.classList.remove('dragging');
+        document.querySelectorAll('.space-item').forEach(s => s.classList.remove('drag-over'));
+        dragSource = null;
+      });
+      li.addEventListener('dragover', (e) => {
+        if (!dragSource || dragSource.type !== 'space') return;
+        e.preventDefault();
+        document.querySelectorAll('.space-item').forEach(s => s.classList.remove('drag-over'));
+        if (dragSource.index !== index) {
+          li.classList.add('drag-over');
+        }
+      });
+      li.addEventListener('dragleave', () => {
+        li.classList.remove('drag-over');
+      });
+      li.addEventListener('drop', (e) => {
+        if (!dragSource || dragSource.type !== 'space') return;
+        e.preventDefault();
+        li.classList.remove('drag-over');
+        const sourceIndex = dragSource.index;
+        const targetIndex = index;
+        if (sourceIndex === targetIndex) return;
+        const [moved] = data.space_list.splice(sourceIndex, 1);
+        data.space_list.splice(targetIndex, 0, moved);
+        saveAll();
+        renderSpaces();
       });
 
       $spacesList.appendChild(li);
