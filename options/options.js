@@ -181,7 +181,7 @@
     bindAutoSync();
   }
 
-  const DEFAULT_FAVICON = chrome.runtime.getURL('assets/icons/defalut_256.png');
+  const DEFAULT_FAVICON = chrome.runtime.getURL('assets/icons/defalut_128.png');
   const SELF_URL = chrome.runtime.getURL('options/options.html');
 
   // ═══ Icon Helper ═══
