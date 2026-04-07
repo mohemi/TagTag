@@ -796,6 +796,15 @@ body {
   opacity: 0.4;
 }
 
+/* Tab card drag reorder indicators */
+.tab-card.drag-above {
+  border-top: 2px solid var(--accent);
+}
+
+.tab-card.drag-below {
+  border-bottom: 2px solid var(--accent);
+}
+
 /* ═══ Right Sidebar ═══ */
 .sidebar-right {
   grid-column: 5;

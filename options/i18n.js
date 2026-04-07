@@ -78,6 +78,7 @@ const I18N = {
       importing: 'Importing...',
       exporting: 'Exporting...',
       importedCollections: (n) => `Imported ${n} collections!`,
+      reordered: 'Reordered successfully',
 
       // Confirm
       confirmDeleteCollection: (name) => `Delete collection "${name}"?`,
@@ -240,6 +241,7 @@ const I18N = {
       importing: '导入中...',
       exporting: '导出中...',
       importedCollections: (n) => `已导入 ${n} 个标签组！`,
+      reordered: '排序已更新',
 
       // Confirm
       confirmDeleteCollection: (name) => `确定删除标签组"${name}"？`,

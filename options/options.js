@@ -670,23 +670,53 @@
       grid.dataset.spaceId = activeSpaceId;
       grid.dataset.groupId = group.id;
 
-      // Drop zone for tabs
+      // Drop zone for tabs (from other groups or browser)
       grid.addEventListener('dragover', (e) => {
         if (dragSource && dragSource.type === 'group') return;
+        // Only handle if not dragging over a specific card (which handles its own events)
+        if (e.target.closest('.tab-card')) return;
         e.preventDefault();
         grid.classList.add('drag-over');
       });
-      grid.addEventListener('dragleave', () => { grid.classList.remove('drag-over'); });
+      grid.addEventListener('dragleave', (e) => {
+        grid.classList.remove('drag-over');
+      });
       grid.addEventListener('drop', (e) => {
         if (dragSource && dragSource.type === 'group') return;
+        // Only handle if not dropping on a specific card (which handles its own events)
+        if (e.target.closest('.tab-card')) return;
         e.preventDefault();
         e.stopPropagation();
         grid.classList.remove('drag-over');
+        
+        // Handle same group reordering to end
+        if (dragSource && dragSource.type === 'card' && dragSource.groupId === group.id) {
+          const space = data.spaces[activeSpaceId];
+          if (!space) return;
+          const targetGroup = space.groups.find(g => g.id === group.id);
+          if (!targetGroup) return;
+          
+          const sourceIndex = dragSource.tabIndex;
+          const targetIndex = targetGroup.tabs.length - 1;
+          
+          if (sourceIndex === targetIndex) return;
+          
+          // Move tab to end
+          const [movedTab] = targetGroup.tabs.splice(sourceIndex, 1);
+          targetGroup.tabs.push(movedTab);
+          
+          saveAll();
+          renderGroups();
+          showToast(t('reordered'));
+          return;
+        }
+        
+        // Handle drop from other groups or browser
         handleDrop(e, activeSpaceId, group.id);
       });
 
-      tabs.forEach(tab => {
-        grid.appendChild(createTabCard(tab, activeSpaceId, group.id));
+      tabs.forEach((tab, tabIndex) => {
+        grid.appendChild(createTabCard(tab, activeSpaceId, group.id, tabIndex));
       });
 
       totalTabs += tabs.length;
@@ -699,10 +729,12 @@
     $tabCount.textContent = t('tabsCount', totalTabs);
   }
 
-  function createTabCard(tab, spaceId, groupId) {
+  function createTabCard(tab, spaceId, groupId, tabIndex) {
     const card = document.createElement('div');
     card.className = 'tab-card' + (tabStyle === 'horizontal' ? ' horizontal' : '');
     card.draggable = !selectMode;
+    card.dataset.tabId = tab.id;
+    card.dataset.index = tabIndex;
 
     let domain = '';
     try { domain = new URL(tab.url).hostname.replace('www.', ''); } catch {}
@@ -765,14 +797,83 @@
       card.addEventListener('mouseleave', () => { if (longPressTimer) clearTimeout(longPressTimer); });
       card.addEventListener('dragstart', () => { if (longPressTimer) clearTimeout(longPressTimer); });
 
-      // Drag card between groups
+      // Drag card between groups or reorder within same group
       card.addEventListener('dragstart', (e) => {
-        dragSource = { type: 'card', spaceId, groupId, tabId: tab.id, tabData: { title: tab.title, url: tab.url, favIconUrl: faviconUrl } };
+        dragSource = { type: 'card', spaceId, groupId, tabId: tab.id, tabIndex, tabData: { title: tab.title, url: tab.url, favIconUrl: faviconUrl } };
         e.dataTransfer.setData('application/json', JSON.stringify(dragSource.tabData));
         e.dataTransfer.effectAllowed = 'move';
         card.classList.add('dragging');
       });
-      card.addEventListener('dragend', () => { card.classList.remove('dragging'); dragSource = null; });
+      card.addEventListener('dragend', () => {
+        card.classList.remove('dragging');
+        document.querySelectorAll('.tab-card').forEach(c => c.classList.remove('drag-above', 'drag-below'));
+        dragSource = null;
+      });
+
+      // Drag over for reordering within same group
+      card.addEventListener('dragover', (e) => {
+        if (!dragSource || dragSource.type !== 'card') return;
+        if (dragSource.groupId !== groupId) return; // Only handle same group
+        e.preventDefault();
+        e.stopPropagation();
+
+        const rect = card.getBoundingClientRect();
+        const midpoint = rect.top + rect.height / 2;
+
+        card.classList.remove('drag-above', 'drag-below');
+        if (e.clientY < midpoint) {
+          card.classList.add('drag-above');
+        } else {
+          card.classList.add('drag-below');
+        }
+      });
+
+      card.addEventListener('dragleave', () => {
+        card.classList.remove('drag-above', 'drag-below');
+      });
+
+      card.addEventListener('drop', (e) => {
+        if (!dragSource || dragSource.type !== 'card') return;
+        if (dragSource.groupId !== groupId) return; // Only handle same group
+        e.preventDefault();
+        e.stopPropagation();
+
+        card.classList.remove('drag-above', 'drag-below');
+
+        const space = data.spaces[spaceId];
+        if (!space) return;
+        const group = space.groups.find(g => g.id === groupId);
+        if (!group) return;
+
+        const sourceIndex = dragSource.tabIndex;
+        const targetIndex = parseInt(card.dataset.index);
+
+        if (sourceIndex === targetIndex) return;
+
+        const rect = card.getBoundingClientRect();
+        const midpoint = rect.top + rect.height / 2;
+        const insertBefore = e.clientY < midpoint;
+
+        // Reorder tabs within the same group
+        const [movedTab] = group.tabs.splice(sourceIndex, 1);
+
+        let newIndex = targetIndex;
+        if (sourceIndex < targetIndex && !insertBefore) {
+          newIndex = targetIndex;
+        } else if (sourceIndex < targetIndex && insertBefore) {
+          newIndex = targetIndex - 1;
+        } else if (sourceIndex > targetIndex && !insertBefore) {
+          newIndex = targetIndex + 1;
+        } else {
+          newIndex = targetIndex;
+        }
+
+        group.tabs.splice(newIndex, 0, movedTab);
+
+        saveAll();
+        renderGroups();
+        showToast(t('reordered'));
+      });
 
       // Click → open
       card.addEventListener('click', (e) => {
