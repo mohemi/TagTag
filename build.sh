@@ -29,9 +29,10 @@ node obfuscate.js
 echo ""
 
 # 生成 ZIP 文件
+# 生成 ZIP 文件
 echo "📦 生成发布包..."
 version=$(grep '"version"' manifest.json | cut -d'"' -f4)
-zip_name="TagTag-v${version}.zip"
+zip_name="TagTag-${version}.zip"
 
 cd dist
 zip -r "../${zip_name}" . -x "*.DS_Store" -x "__MACOSX/*" -x "*.map"
@@ -43,7 +44,7 @@ echo "✅ 打包完成!"
 echo ""
 echo "📁 输出文件:"
 echo "   - dist/          (混淆后的插件目录)"
-echo "   - ${zip_name}  (可直接发布的压缩包)"
+echo "   - ${zip_name}    (可直接发布的压缩包)"
 echo ""
 echo "📝 使用方式:"
 echo "   1. 打开 Chrome 扩展管理页面 (chrome://extensions/)"

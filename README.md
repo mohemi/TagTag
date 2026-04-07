@@ -13,6 +13,7 @@ TagTag 是一个基于 Chrome Manifest V3 的标签管理扩展，用于把浏�
 - 重命名空间
 - 删除空间
 - 修改空间图标
+- **Space 支持拖拽排序**
 - 左侧空间列表支持收起
 
 ### 2. Collections 分组管理
@@ -154,7 +155,9 @@ TagTag/
 ## 建议测试项
 
 - 创建 / 删除 / 重命名 Space
+- **拖拽排序 Space**
 - 创建 / 删除 / 重命名 / 移动 Collection
+- **拖拽排序 Collection**
 - 拖拽标签卡片到其他分组
 - 从右侧当前标签列表拖入 Collection
 - 导出备份并重新导入
