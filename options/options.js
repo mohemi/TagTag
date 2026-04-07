@@ -2412,11 +2412,73 @@
     toggleWebDAVConfig($webdavToggle.checked);
     saveWebDAVSettings();
   });
+// WebDAV config inputs
+[$webdavUrl, $webdavUsername, $webdavPassword].forEach(el => {
+  el.addEventListener('change', saveWebDAVSettings);
+});
 
-  // WebDAV config inputs
-  [$webdavUrl, $webdavUsername, $webdavPassword, $webdavAutoSync].forEach(el => {
-    el.addEventListener('change', saveWebDAVSettings);
+// Auto sync toggle with confirmation dialog
+$webdavAutoSync.addEventListener('change', async () => {
+  if ($webdavAutoSync.checked) {
+    // Show confirmation dialog when enabling auto sync
+    const confirmed = await showAutoSyncConfirmDialog();
+    if (!confirmed) {
+      // User cancelled, revert the toggle
+      $webdavAutoSync.checked = false;
+      return;
+    }
+    // User confirmed, perform immediate sync
+    await saveWebDAVSettings();
+    uploadToWebDAV({ silent: false });
+  } else {
+    // Disabling auto sync, save directly
+    await saveWebDAVSettings();
+  }
+});
+
+// Show auto sync confirmation dialog
+function showAutoSyncConfirmDialog() {
+  return new Promise((resolve) => {
+    const dialogHtml = `
+      <div class="modal-overlay" id="autoSyncConfirmDialog" style="z-index: 3000;">
+        <div class="modal" style="width: 400px;">
+          <div class="modal-header">
+            <h3>确认开启自动同步</h3>
+            <button class="btn-icon modal-close" id="autoSyncConfirmClose">&times;</button>
+          </div>
+          <div class="modal-body" style="padding: 20px;">
+            <p style="color: var(--text-secondary); line-height: 1.6;">
+              开启后会立即将本地的数据同步到远程一次，请慎重！！！
+            </p>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-secondary" id="autoSyncConfirmCancel">取消</button>
+            <button class="btn-primary" id="autoSyncConfirmOk">确定</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const dialogEl = document.createElement('div');
+    dialogEl.innerHTML = dialogHtml;
+    document.body.appendChild(dialogEl);
+
+    const overlay = dialogEl.querySelector('#autoSyncConfirmDialog');
+
+    function close(result) {
+      dialogEl.remove();
+      resolve(result);
+    }
+
+    dialogEl.querySelector('#autoSyncConfirmClose').addEventListener('click', () => close(false));
+    dialogEl.querySelector('#autoSyncConfirmCancel').addEventListener('click', () => close(false));
+    dialogEl.querySelector('#autoSyncConfirmOk').addEventListener('click', () => close(true));
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) close(false);
+    });
   });
+}
 
   // Toggle password visibility
   $toggleWebdavPassword.addEventListener('click', () => {

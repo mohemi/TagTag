@@ -1015,7 +1015,7 @@ body {
 }
 
 .btn-primary {
-  background: var(--accent);
+  background: #3b82f6;
   color: #fff;
   border: none;
   padding: 6px 16px;
@@ -1027,7 +1027,7 @@ body {
 }
 
 .btn-primary:hover {
-  background: var(--accent-hover);
+  background: #2563eb;
 }
 
 .btn-secondary {
@@ -1274,10 +1274,10 @@ body {
 /* ═══ Toast ═══ */
 .toast {
   position: fixed;
-  bottom: 60px;
+  bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
-  background: var(--accent);
+  background: #3b82f6;
   color: #fff;
   padding: 8px 20px;
   border-radius: 8px;
@@ -1684,8 +1684,8 @@ body {
 }
 
 .settings-toggle input:checked + .toggle-slider {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: #3b82f6;
+  border-color: #3b82f6;
 }
 
 .settings-toggle input:checked + .toggle-slider::after {
@@ -1972,7 +1972,7 @@ body {
 }
 
 .sync-status.success {
-  color: #22c55e;
+  color: #3b82f6;
 }
 
 .sync-status.error {
