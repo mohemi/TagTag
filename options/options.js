@@ -181,8 +181,14 @@
     bindAutoSync();
   }
 
-  const DEFAULT_FAVICON = chrome.runtime.getURL('assets/icons/icon128.png');
+  const DEFAULT_FAVICON = chrome.runtime.getURL('assets/icons/defalut_256.png');
   const SELF_URL = chrome.runtime.getURL('options/options.html');
+
+  // ═══ Icon Helper ═══
+  // Centralized favicon handler - modify here to change default icon
+  function getFaviconUrl(favIconUrl) {
+    return favIconUrl || DEFAULT_FAVICON;
+  }
 
   // ── Menu Icon SVGs ──
   const MENU_ICONS = {
@@ -372,7 +378,7 @@
       section.className = 'collection-section';
       section.dataset.groupId = group.id;
       section.dataset.index = groupIndex;
-      section.draggable = true;
+      section.draggable = false;
       const isCollapsed = Boolean(group.collapsed);
 
       // ── Header ──
@@ -405,14 +411,24 @@
       });
 
       section.addEventListener('dragstart', (e) => {
-        if (e.target !== section && !section.contains(e.target)) return;
+        // Only handle drag if it originated from this section itself (via drag handle)
+        // Don't interfere with child element drags (e.g., tab cards)
+        if (e.target !== section) {
+          return;
+        }
+        if (!section.draggable) {
+          e.preventDefault();
+          return;
+        }
         dragSource = { type: 'group', spaceId: activeSpaceId, groupId: group.id, index: groupIndex };
         e.dataTransfer.setData('application/json', JSON.stringify({ type: 'group', groupId: group.id, index: groupIndex }));
         e.dataTransfer.effectAllowed = 'move';
         section.classList.add('dragging');
       });
 
-      section.addEventListener('dragend', () => {
+      section.addEventListener('dragend', (e) => {
+        // Only handle if this section was the drag source (not a child card)
+        if (!dragSource || dragSource.type !== 'group') return;
         section.classList.remove('dragging');
         section.draggable = false;
         // Clear all drag indicators
@@ -423,27 +439,44 @@
       });
 
       section.addEventListener('dragover', (e) => {
-        if (!dragSource || dragSource.type !== 'group') return;
-        e.preventDefault();
-        
-        const rect = section.getBoundingClientRect();
-        const midpoint = rect.top + rect.height / 2;
-        
-        section.classList.remove('drag-above', 'drag-below');
-        if (e.clientY < midpoint) {
-          section.classList.add('drag-above');
-        } else {
-          section.classList.add('drag-below');
+        if (!dragSource) return;
+        if (dragSource.type === 'group') {
+          e.preventDefault();
+          e.stopPropagation();
+
+          const rect = section.getBoundingClientRect();
+          const midpoint = rect.top + rect.height / 2;
+
+          section.classList.remove('drag-above', 'drag-below');
+          if (e.clientY < midpoint) {
+            section.classList.add('drag-above');
+          } else {
+            section.classList.add('drag-below');
+          }
+          return;
+        }
+        // Allow tab card / browser tab drop on section header or collapsed group
+        if (dragSource.type === 'card' || dragSource.type === 'browser') {
+          e.preventDefault();
+          section.classList.add('drag-over');
         }
       });
 
       section.addEventListener('dragleave', (e) => {
-        section.classList.remove('drag-above', 'drag-below');
+        section.classList.remove('drag-above', 'drag-below', 'drag-over');
       });
 
       section.addEventListener('drop', (e) => {
-        if (!dragSource || dragSource.type !== 'group') return;
+        section.classList.remove('drag-over');
+        if (!dragSource) return;
+        if (dragSource.type === 'card' || dragSource.type === 'browser') {
+          e.preventDefault();
+          handleDrop(e, activeSpaceId, group.id);
+          return;
+        }
+        if (dragSource.type !== 'group') return;
         e.preventDefault();
+        e.stopPropagation();
         
         section.classList.remove('drag-above', 'drag-below');
         
@@ -587,6 +620,7 @@
       emptyPlaceholder.addEventListener('drop', (e) => {
         if (dragSource && dragSource.type === 'group') return;
         e.preventDefault();
+        e.stopPropagation();
         emptyPlaceholder.classList.remove('drag-over');
         handleDrop(e, activeSpaceId, group.id);
       });
@@ -609,6 +643,7 @@
       grid.addEventListener('drop', (e) => {
         if (dragSource && dragSource.type === 'group') return;
         e.preventDefault();
+        e.stopPropagation();
         grid.classList.remove('drag-over');
         handleDrop(e, activeSpaceId, group.id);
       });
@@ -635,7 +670,7 @@
     let domain = '';
     try { domain = new URL(tab.url).hostname.replace('www.', ''); } catch {}
 
-    const faviconUrl = tab.favIconUrl || tab.favIconUrl || DEFAULT_FAVICON;
+    const faviconUrl = getFaviconUrl(tab.favIconUrl);
     const tabKey = `${spaceId}:${groupId}:${tab.id}`;
     const isChecked = selectedTabs.has(tabKey);
 
@@ -659,7 +694,7 @@
     // Fallback favicon on error (no inline handler for CSP)
     const img = card.querySelector('.tab-favicon');
     img.addEventListener('error', () => {
-      img.src = DEFAULT_FAVICON;
+      img.src = getFaviconUrl();
     }, { once: true });
 
     if (selectMode) {
@@ -976,7 +1011,7 @@
       li.className = 'current-tab-item';
       li.draggable = true;
 
-      const favicon = tab.favIconUrl || DEFAULT_FAVICON;
+      const favicon = getFaviconUrl(tab.favIconUrl);
       li.innerHTML = `
         <img src="${esc(favicon)}" alt="">
         <span>${esc(tab.title || tab.url || t('untitled'))}</span>
@@ -984,7 +1019,7 @@
       `;
 
       // Fallback: use default favicon
-      li.querySelector('img').addEventListener('error', function () { this.src = DEFAULT_FAVICON; }, { once: true });
+      li.querySelector('img').addEventListener('error', function () { this.src = getFaviconUrl(); }, { once: true });
 
       // Close button
       li.querySelector('.tab-close-btn').addEventListener('click', (e) => {

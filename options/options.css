@@ -610,8 +610,8 @@ body {
 }
 
 .tab-card .tab-favicon {
-  width: 25px;
-  height: 25px;
+  width: 32px;
+  height: 32px;
   border-radius: 5px;
   object-fit: contain;
   flex-shrink: 0;
@@ -693,8 +693,8 @@ body {
 }
 
 .tab-card.horizontal .tab-favicon {
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
 }
 
 .tab-card.horizontal .tab-title {
@@ -946,8 +946,8 @@ body {
 }
 
 .current-tab-item img {
-  width: 29px;
-  height: 29px;
+  width: 32px;
+  height: 32px;
   border-radius: 6px;
   flex-shrink: 0;
   object-fit: contain;
