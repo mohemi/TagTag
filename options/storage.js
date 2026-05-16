@@ -302,8 +302,6 @@ class StorageManager {
       return emojiPattern.test(str);
     };
 
-    const reverseGroups = (groups = []) => [...groups].reverse();
-
     const data = {
       version: Date.now(),
       space_list: backupData.space_list.map(s => ({
@@ -320,7 +318,7 @@ class StorageManager {
       data.spaces[spaceId] = {
         id: spaceData.id,
         name: spaceData.name,
-        groups: reverseGroups(spaceData.groups).map(g => ({
+        groups: (spaceData.groups || []).map(g => ({
           id: g.id,
           name: g.name,
           tabs: (g.tabs || []).map(t => ({
@@ -360,8 +358,6 @@ class StorageManager {
       return emojiPattern.test(str);
     };
 
-    const reverseGroups = (groups = []) => [...groups].reverse();
-
     // Merge space_list - add new spaces, keep existing ones
     const existingSpaceIds = new Set(existingData.space_list.map(s => s.id));
     
@@ -383,7 +379,7 @@ class StorageManager {
         existingData.spaces[spaceId] = {
           id: spaceData.id,
           name: spaceData.name,
-          groups: reverseGroups(spaceData.groups).map(g => ({
+          groups: (spaceData.groups || []).map(g => ({
             id: g.id,
             name: g.name,
             tabs: (g.tabs || []).map(t => ({
