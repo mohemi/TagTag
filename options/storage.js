@@ -375,7 +375,6 @@ class StorageManager {
     // Merge spaces data
     for (const [spaceId, spaceData] of Object.entries(backupData.spaces)) {
       if (!existingData.spaces[spaceId]) {
-        // New space - add it
         existingData.spaces[spaceId] = {
           id: spaceData.id,
           name: spaceData.name,
